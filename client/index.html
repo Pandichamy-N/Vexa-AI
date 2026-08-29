@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ================= SEO ================= -->
+    <title>VEXA — Watch Videos, Shorts & Stream Music</title>
+    <meta
+      name="description"
+      content="VEXA is a free video streaming platform with Shorts, AI-powered search and recommendations, and VEXA Music — stream, discover, and upload videos and music in one place."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://vexa-ai-tau.vercel.app/" />
+
+    <!-- Open Graph (Facebook, WhatsApp, LinkedIn link previews) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="VEXA" />
+    <meta property="og:title" content="VEXA — Watch Videos, Shorts & Stream Music" />
+    <meta
+      property="og:description"
+      content="A free video streaming platform with Shorts, AI-powered search and recommendations, and VEXA Music."
+    />
+    <meta property="og:url" content="https://vexa-ai-tau.vercel.app/" />
+    <meta property="og:image" content="https://vexa-ai-tau.vercel.app/og-image.png" />
+
+    <!-- Twitter/X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="VEXA — Watch Videos, Shorts & Stream Music" />
+    <meta
+      name="twitter:description"
+      content="A free video streaming platform with Shorts, AI-powered search and recommendations, and VEXA Music."
+    />
+    <meta name="twitter:image" content="https://vexa-ai-tau.vercel.app/og-image.png" />
+
+    <!-- Structured data — helps Google understand this is the official
+         VEXA site/brand, not just an unlabeled page -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "VEXA",
+        "url": "https://vexa-ai-tau.vercel.app/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "https://vexa-ai-tau.vercel.app/search?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

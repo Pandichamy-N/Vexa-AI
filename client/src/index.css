@@ -1,0 +1,399 @@
+@import "tailwindcss";
+
+@theme {
+    /* ================= COLOR TOKENS ================= */
+    /* Warm graphite base — not pure black */
+    --color-ink: #121212;
+    --color-surface: #1b1b1d;
+    --color-surface-2: #232326;
+    --color-surface-3: #2a2a2e;
+    --color-border: #2e2e31;
+    --color-border-soft: #262629;
+
+    --color-text: #f2f0eb;
+    --color-text-muted: #9a968d;
+    --color-text-faint: #6f6c65;
+
+    /* Brand accent — human/creator actions (professional blue) */
+    --color-brand: #3b82f6;
+    --color-brand-dark: #1d4ed8;
+    --color-brand-soft: #112447;
+
+    /* AI accent — reserved ONLY for AI-labeled features */
+    --color-ai-from: #2dd4bf;
+    --color-ai-to: #38bdf8;
+    --color-ai-soft: #0f2b2c;
+
+    --color-danger: #ef4444;
+    --color-danger-dark: #b91c1c;
+
+    /* ================= TYPE TOKENS ================= */
+    --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+    --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* ================= LIGHT THEME OVERRIDE ================= */
+/* Since every component reads colors via var(--color-*) in inline
+   styles (not static Tailwind classes), redefining these under
+   [data-theme="light"] instantly re-themes the entire site — set by
+   ThemeContext.jsx via document.documentElement.setAttribute. */
+[data-theme="light"] {
+    --color-ink: #f5f4f1;
+    --color-surface: #ffffff;
+    --color-surface-2: #f0efeb;
+    --color-surface-3: #e6e4de;
+    --color-border: #e0ddd6;
+    --color-border-soft: #ebe9e3;
+
+    --color-text: #1c1b18;
+    --color-text-muted: #6b6860;
+    --color-text-faint: #918d84;
+
+    --color-brand-soft: #dbeafe;
+
+    --color-ai-soft: #e6fbf8;
+}
+
+/* ================= BASE ================= */
+body {
+    background-color: var(--color-ink);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+}
+
+::selection {
+    background-color: var(--color-brand);
+    color: #ffffff;
+}
+
+/* Custom scrollbar — thin, on-theme, not the browser default */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-surface-3) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: var(--color-surface-3);
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Fully hides the scrollbar — used for horizontally-scrollable strips
+   (mobile tab chips, the Shorts vertical feed) that rely on the scroll
+   gesture itself for navigation, not a visible scrollbar. */
+.no-scrollbar {
+    scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* Visible keyboard focus ring, on-theme */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--color-ai-to);
+    outline-offset: 2px;
+}
+
+/* ================= SIGNATURE: WAVEFORM PULSE ================= */
+/* Used in the logo mark and as a "live/thinking" indicator on AI panels.
+   Ties "Stream" (waveform) + "Mind" (a living pulse) directly to the
+   product name rather than being decorative. */
+.waveform {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    height: 16px;
+}
+
+.waveform span {
+    display: block;
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--color-ai-from), var(--color-ai-to));
+    animation: waveform-bounce 1.1s ease-in-out infinite;
+}
+
+.waveform span:nth-child(1) { height: 40%; animation-delay: 0s; }
+.waveform span:nth-child(2) { height: 100%; animation-delay: 0.15s; }
+.waveform span:nth-child(3) { height: 65%; animation-delay: 0.3s; }
+.waveform span:nth-child(4) { height: 85%; animation-delay: 0.45s; }
+
+@keyframes waveform-bounce {
+    0%, 100% { transform: scaleY(0.4); }
+    50% { transform: scaleY(1); }
+}
+
+/* ================= AI UTILITY CLASSES ================= */
+/* Reserved exclusively for AI-labeled buttons/panels/badges, so the
+   accent itself signals "this is AI" consistently across the app. */
+.ai-gradient-text {
+    background: linear-gradient(90deg, var(--color-ai-from), var(--color-ai-to));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.ai-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(90deg, var(--color-ai-from), var(--color-ai-to));
+    color: #06201f;
+    font-weight: 600;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.ai-btn:hover {
+    opacity: 0.9;
+}
+
+.ai-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ai-panel {
+    background-color: var(--color-ai-soft);
+    background-image: radial-gradient(rgba(45, 212, 191, 0.12) 1px, transparent 1px);
+    background-size: 18px 18px;
+    border: 1px solid rgba(45, 212, 191, 0.25);
+}
+
+.ai-chip {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+}
+
+/* Brand (human/creator) primary button */
+.brand-btn {
+    background-color: var(--color-brand);
+    color: #ffffff;
+    font-weight: 600;
+    transition: background-color 0.15s ease;
+}
+
+.brand-btn:hover {
+    background-color: var(--color-brand-dark);
+}
+
+.brand-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Card hover — subtle lift + glow instead of a flat scale */
+.media-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.media-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* Buttons get a tiny press animation everywhere they're used */
+.brand-btn, .ai-btn {
+    transition: transform 0.12s ease, opacity 0.15s ease, background-color 0.15s ease;
+}
+.brand-btn:active, .ai-btn:active {
+    transform: scale(0.96);
+}
+
+/* ================= MOTION: CHAT PANEL / MESSAGES ================= */
+@keyframes chat-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-chat-in {
+    animation: chat-in 0.22s ease-out;
+}
+
+@keyframes msg-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-msg-in {
+    animation: msg-in 0.18s ease-out;
+}
+
+@keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-ai-to);
+    display: inline-block;
+    animation: typing-bounce 1s ease-in-out infinite;
+}
+
+/* ================= MOTION: STAGGERED GRID FADE-IN ================= */
+@keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+    animation: fade-up 0.4s ease-out both;
+}
+
+/* Same fade-up motion, but for elements that are also horizontally
+   centered via transform: translateX(-50%) (e.g. MusicPlayerBar) — the
+   plain fade-up keyframe's own transform would otherwise overwrite that
+   centering the moment the animation runs, shoving the element off to
+   one side. */
+@keyframes fade-up-center {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.animate-fade-up-center {
+    animation: fade-up-center 0.4s ease-out both;
+}
+
+/* ================= PATTERN: AMBIENT BACKGROUND GLOW ================= */
+/* Two soft, slowly-drifting radial blobs behind the app content — a
+   subtle "living signal" backdrop rather than a flat panel, used behind
+   the main layout only (never behind readable text directly). */
+@keyframes drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(40px, 20px) scale(1.08); }
+}
+@keyframes drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-30px, -25px) scale(1.05); }
+}
+
+.ambient-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.ambient-glow::before,
+.ambient-glow::after {
+    content: "";
+    position: absolute;
+    width: 46vw;
+    height: 46vw;
+    border-radius: 999px;
+    filter: blur(120px);
+    opacity: 0.16;
+}
+
+.ambient-glow::before {
+    top: -10%;
+    right: -8%;
+    background: radial-gradient(circle, var(--color-ai-to), transparent 70%);
+    animation: drift-a 22s ease-in-out infinite;
+}
+
+.ambient-glow::after {
+    bottom: -15%;
+    left: -10%;
+    background: radial-gradient(circle, var(--color-brand), transparent 70%);
+    animation: drift-b 26s ease-in-out infinite;
+}
+
+/* ================= PATTERN: SUBTLE DOT GRID ================= */
+/* A faint texture for large surfaces so panels don't read as flat,
+   empty rectangles. Kept low-contrast so it never competes with text. */
+.bg-dot-grid {
+    background-image: radial-gradient(var(--color-surface-3) 1px, transparent 1px);
+    background-size: 22px 22px;
+}
+
+/* ================= TOAST NOTIFICATIONS ================= */
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-toast-in {
+    animation: toast-in 0.25s ease-out;
+}
+
+/* ================= VEXA MUSIC: NOW PLAYING VISUALS ================= */
+/* A gentle glowing pulse around the currently-playing cover art —
+   the visual heartbeat of the player, only active while playing. */
+@keyframes now-playing-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.35); }
+    50% { box-shadow: 0 0 0 6px rgba(255, 176, 32, 0); }
+}
+.now-playing-glow {
+    animation: now-playing-glow 2s ease-in-out infinite;
+}
+
+/* Tiny live equalizer bars overlaid on now-playing cover art — the
+   classic "this is playing right now" music-app indicator. */
+.now-playing-eq {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+}
+.now-playing-eq span {
+    display: block;
+    width: 2.5px;
+    border-radius: 999px;
+    background: var(--color-brand);
+    animation: eq-bounce 0.9s ease-in-out infinite;
+}
+.now-playing-eq span:nth-child(1) { height: 40%; animation-delay: 0s; }
+.now-playing-eq span:nth-child(2) { height: 100%; animation-delay: 0.2s; }
+.now-playing-eq span:nth-child(3) { height: 65%; animation-delay: 0.4s; }
+
+@keyframes eq-bounce {
+    0%, 100% { transform: scaleY(0.35); }
+    50% { transform: scaleY(1); }
+}
+
+/* Slow, subtle vinyl-style rotation for the mini player's cover art
+   while a track is actively playing. */
+@keyframes vinyl-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.vinyl-spin {
+    animation: vinyl-spin 8s linear infinite;
+}
+
+/* ================= PAGE TRANSITIONS ================= */
+@keyframes page-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-page-in {
+    animation: page-in 0.22s ease-out;
+}
