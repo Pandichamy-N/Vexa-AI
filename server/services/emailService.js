@@ -15,30 +15,45 @@ export const sendOtpEmail = async (toEmail, name, code) => {
         throw new Error("Email sending isn't configured on the server yet.");
     }
 
-    await axios.post(
-        BREVO_API_URL,
-        {
-            sender: { name: "VEXA", email: process.env.EMAIL_USER },
-            to: [{ email: toEmail, name: name || undefined }],
-            subject: "Your VEXA verification code",
-            htmlContent: `
-                <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
-                    <h2 style="color:#3B82F6;">VEXA</h2>
-                    <p>Hi ${name || "there"},</p>
-                    <p>Your verification code is:</p>
-                    <p style="font-size: 32px; font-weight: bold; letter-spacing: 6px;">${code}</p>
-                    <p>This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
-                </div>
-            `,
-        },
-        {
-            headers: {
-                "api-key": process.env.BREVO_API_KEY,
-                "Content-Type": "application/json",
-                "Accept": "application/json",
+    try {
+
+        await axios.post(
+            BREVO_API_URL,
+            {
+                sender: { name: "VEXA", email: process.env.EMAIL_USER },
+                to: [{ email: toEmail, name: name || undefined }],
+                subject: "Your VEXA verification code",
+                htmlContent: `
+                    <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+                        <h2 style="color:#3B82F6;">VEXA</h2>
+                        <p>Hi ${name || "there"},</p>
+                        <p>Your verification code is:</p>
+                        <p style="font-size: 32px; font-weight: bold; letter-spacing: 6px;">${code}</p>
+                        <p>This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
+                    </div>
+                `,
             },
-            timeout: 10000,
-        }
-    );
+            {
+                headers: {
+                    "api-key": process.env.BREVO_API_KEY,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                timeout: 10000,
+            }
+        );
+
+    } catch (error) {
+
+        // Brevo's actual reason (invalid key, unverified sender, account
+        // not yet activated, etc.) lives in the response body — the
+        // generic axios error message alone ("Request failed with
+        // status code 403") hides it. Logging it here is the only way
+        // to see WHY, since callers only get a clean message back.
+        console.error("Brevo send failed:", JSON.stringify(error.response?.data || error.message));
+
+        throw new Error("Couldn't send the verification email right now.");
+
+    }
 
 };
