@@ -123,6 +123,7 @@ export const getMusicNextTracks = async (req, res) => {
     try {
 
         const { id } = req.params;
+        const excludeIds = (req.query.exclude || "").split(",").filter(Boolean);
 
         const currentTrack = await Track.findById(id);
 
@@ -147,7 +148,17 @@ export const getMusicNextTracks = async (req, res) => {
             return res.status(200).json({ success: true, tracks: [], source: "none" });
         }
 
-        const candidateTracks = await upsertTracks(normalized);
+        const upserted = await upsertTracks(normalized);
+
+        // Same-artist searches tend to return largely the same handful
+        // of videos every time — without this, a session can ping-pong
+        // back to a track that already played a minute ago the moment
+        // the queue runs out again.
+        const candidateTracks = upserted.filter((t) => !excludeIds.includes(t._id.toString()));
+
+        if (candidateTracks.length === 0) {
+            return res.status(200).json({ success: true, tracks: [], source: "none" });
+        }
 
         try {
 
