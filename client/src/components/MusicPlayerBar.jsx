@@ -31,7 +31,7 @@ function MusicPlayerBar() {
         autoNext, queueLoading, shuffle, repeat, volume,
         adActive, adSecondsLeft, adDuration, currentAd,
         togglePlay, skipNext, skipPrevious, seekTo, closePlayer,
-        toggleShuffle, cycleRepeat, setVolume, playTrack,
+        toggleShuffle, cycleRepeat, setVolume,
     } = useContext(MusicPlayerContext);
 
     const [favorited, setFavorited] = useState(false);
@@ -128,11 +128,6 @@ function MusicPlayerBar() {
         showToast("Download started", "success");
     };
 
-    const handlePlayFromQueue = (track) => {
-        playTrack(track, queue, isPremium);
-        setShowQueue(false);
-    };
-
     const handleVolumeChange = (e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
@@ -205,17 +200,13 @@ function MusicPlayerBar() {
                                 </p>
                             ) : (
                                 upNext.map((track) => (
-                                    <button
-                                        key={track._id}
-                                        onClick={() => handlePlayFromQueue(track)}
-                                        className="w-full flex items-center gap-2 px-1 py-1.5 rounded-lg text-left hover:brightness-125 transition-all"
-                                    >
+                                    <div key={track._id} className="flex items-center gap-2 px-1 py-1.5 rounded-lg">
                                         <img src={track.cover} alt={track.title} className="w-9 h-9 rounded object-cover shrink-0" />
                                         <div className="min-w-0">
                                             <p className="text-xs truncate" style={{ color: "var(--color-text)" }}>{track.title}</p>
                                             <p className="text-[10px] truncate" style={{ color: "var(--color-text-faint)" }}>{track.artist}</p>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))
                             )}
                         </div>
@@ -250,15 +241,6 @@ function MusicPlayerBar() {
                                 {queueLoading ? "Finding similar tracks..." : currentTrack.artist}
                             </p>
                         </div>
-
-                        <button
-                            onClick={handleToggleFavorite}
-                            title={t("favorite")}
-                            className="shrink-0"
-                            style={{ color: favorited ? "#f87171" : "var(--color-text-faint)" }}
-                        >
-                            {favorited ? <FaHeart size={14} /> : <FaRegHeart size={14} />}
-                        </button>
 
                         <div className="hidden lg:flex items-center gap-2.5 shrink-0">
 
@@ -307,6 +289,10 @@ function MusicPlayerBar() {
                         </div>
 
                         <div className="flex items-center gap-2.5 shrink-0">
+
+                            <button onClick={handleToggleFavorite} title={t("favorite")} style={{ color: favorited ? "#f87171" : "var(--color-text-faint)" }}>
+                                {favorited ? <FaHeart size={13} /> : <FaRegHeart size={13} />}
+                            </button>
 
                             <button
                                 onClick={isPremium ? toggleShuffle : () => navigate("/premium")}
@@ -390,22 +376,6 @@ function MusicPlayerBar() {
                             <FaTimes size={13} />
                         </button>
 
-                    </div>
-
-                    {/* Mobile-only progress bar — the inline one above is
-                        md:+ only (no room for it alongside every control
-                        on a phone-width screen), so this full-width row
-                        gives mobile a seek bar too. */}
-                    <div className="flex md:hidden items-center gap-2 px-4 pb-2.5 -mt-1">
-                        <span className="text-[10px] w-8 text-right shrink-0" style={{ color: "var(--color-text-faint)" }}>
-                            {formatTime(progress)}
-                        </span>
-                        <div onClick={handleSeek} className="flex-1 h-1.5 rounded-full cursor-pointer" style={{ backgroundColor: "var(--color-surface-2)" }}>
-                            <div className="h-full rounded-full" style={{ width: `${progressPct}%`, backgroundColor: "var(--color-brand)" }} />
-                        </div>
-                        <span className="text-[10px] w-8 shrink-0" style={{ color: "var(--color-text-faint)" }}>
-                            {formatTime(duration)}
-                        </span>
                     </div>
 
                 </>

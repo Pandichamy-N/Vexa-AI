@@ -38,13 +38,9 @@ function Register() {
                 password,
             });
 
-            localStorage.setItem("token", data.token);
-            localStorage.setItem("role", data.user?.role || "user");
-            localStorage.setItem("userId", data.user?._id || "");
-
-            // First-time users always go through onboarding — pick 3+
-            // categories before landing on the personalized homepage.
-            navigate("/onboarding");
+            // Registration no longer logs the person straight in — an
+            // email verification code has to be entered first.
+            navigate("/verify-email", { state: { email: data.email || email } });
 
         } catch (error) {
 

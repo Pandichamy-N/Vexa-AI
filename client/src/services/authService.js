@@ -7,8 +7,6 @@ const API = axios.create({
 
 export const loginUser = async (userData) => {
 
-    console.log("Email from frontend:", userData.email);
-
     const response = await API.post("/auth/login", userData);
 
     return response.data;
@@ -17,6 +15,20 @@ export const loginUser = async (userData) => {
 export const registerUser = async (userData) => {
 
     const response = await API.post("/auth/register", userData);
+
+    return response.data;
+};
+
+export const verifyEmailOtp = async (email, code) => {
+
+    const response = await API.post("/auth/verify-email", { email, code });
+
+    return response.data;
+};
+
+export const resendOtp = async (email) => {
+
+    const response = await API.post("/auth/resend-otp", { email });
 
     return response.data;
 };

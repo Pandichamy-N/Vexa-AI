@@ -20,6 +20,22 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+
+        // ================= EMAIL VERIFICATION =================
+        // Registration isn't complete (and login is blocked) until this
+        // is true — see verifyEmailOtp / resendOtp in authController.js.
+        emailVerified: {
+            type: Boolean,
+            default: false,
+        },
+
+        otpCodeHash: {
+            type: String,
+        },
+
+        otpExpires: {
+            type: Date,
+        },
         
         profilePic: {
             type: String,

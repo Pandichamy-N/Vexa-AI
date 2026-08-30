@@ -257,29 +257,14 @@ function MusicPlayerProvider({ children }) {
         }
 
         // Everything else (search results, favorites, recently played,
-        // an artist's tracks) — blend mode. Play forward through
-        // whatever's already sitting in the queue first (the AI curator
-        // already ordered a batch of up to 8 last time); only ask it
-        // for a fresh continuation once we actually reach the end.
-        const currentIdx = currentQueue.findIndex((t) => t._id === track._id);
-        const alreadyQueuedNext = currentQueue[currentIdx + 1];
-
-        if (alreadyQueuedNext) {
-            startTrack(alreadyQueuedNext);
-            return;
-        }
-
-        // Queue exhausted — ask the AI curator for a related
-        // continuation, excluding everything already played this
-        // session so a same-artist search can't loop back to a track
-        // that already played.
-        const playedIds = currentQueue.map((t) => t._id);
-
+        // an artist's tracks) — blend mode: ask the AI curator for a
+        // related continuation instead of just playing through whatever
+        // order that list happened to come back in.
         try {
 
             setQueueLoading(true);
 
-            const res = await getMusicNextTracks(track._id, playedIds);
+            const res = await getMusicNextTracks(track._id);
             const aiTracks = res.data?.tracks || [];
 
             if (aiTracks.length > 0) {
@@ -302,7 +287,7 @@ function MusicPlayerProvider({ children }) {
             setQueueLoading(true);
 
             const res = await searchMusic(track.artist || track.title);
-            const more = (res.data?.tracks || []).filter((t) => !playedIds.includes(t._id));
+            const more = (res.data?.tracks || []).filter((t) => t._id !== track._id);
 
             if (more.length > 0) {
                 const extendedQueue = [...currentQueue, ...more];

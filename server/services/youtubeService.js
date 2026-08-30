@@ -86,7 +86,7 @@ export const fetchChannelLatestVideos = async (channelId, limit = 5) => {
 // same 100 units regardless of maxResults, so there's no reason not to
 // ask for the max). pageToken lets the caller page through more results
 // ("Load More"), same as scrolling YouTube's own search results.
-export const searchYoutubeVideos = async (query, maxResults = 50, pageToken = null) => {
+export const searchYoutubeVideos = async (query, maxResults = 50, pageToken = null, videoCategoryId = null) => {
 
     const apiKey = process.env.YOUTUBE_API_KEY;
 
@@ -108,6 +108,13 @@ export const searchYoutubeVideos = async (query, maxResults = 50, pageToken = nu
                     safeSearch: "moderate",
                     key: apiKey,
                     ...(pageToken ? { pageToken } : {}),
+                    // Restricts results to a specific YouTube content
+                    // category (e.g. "10" = Music) — used by VEXA Music
+                    // search so vlogs/shorts/unrelated clips that merely
+                    // match the query text don't show up as "songs".
+                    // Left unset for general video search, which should
+                    // return anything matching.
+                    ...(videoCategoryId ? { videoCategoryId } : {}),
                 },
                 timeout: 8000,
             }
@@ -133,65 +140,6 @@ export const searchYoutubeVideos = async (query, maxResults = 50, pageToken = nu
         console.error("Live YouTube search failed:", error.response?.data?.error?.message || error.message);
         return { videos: [], nextPageToken: null };
     }
-
-};
-
-// ================= DURATION LOOKUP (shared) =================
-// Fetches exact ISO 8601 durations for a batch of video IDs in one
-// call. Used to tell real songs/videos apart from YouTube Shorts,
-// which search.list's videoDuration filter can't do precisely (its
-// "short" bucket means "under 4 minutes", not "is a Short").
-export const getVideoDurationsSeconds = async (videoIds) => {
-
-    const apiKey = process.env.YOUTUBE_API_KEY;
-
-    if (!apiKey || videoIds.length === 0) return {};
-
-    try {
-
-        const { data } = await axios.get(
-            "https://www.googleapis.com/youtube/v3/videos",
-            {
-                params: {
-                    part: "contentDetails",
-                    id: videoIds.join(","),
-                    key: apiKey,
-                },
-                timeout: 8000,
-            }
-        );
-
-        const durationById = {};
-        (data.items || []).forEach((item) => {
-            durationById[item.id] = parseIsoDurationToSeconds(item.contentDetails?.duration);
-        });
-
-        return durationById;
-
-    } catch (error) {
-        console.error("Video duration lookup failed:", error.response?.data?.error?.message || error.message);
-        return {};
-    }
-
-};
-
-// Filters a batch of search.list-shaped video results (each with a
-// `videoId`) down to ones that AREN'T YouTube Shorts (<=60s) — used to
-// keep Shorts-length clips out of the Music search/next-up results,
-// which is a plain YouTube search under the hood and would otherwise
-// happily return #shorts snippets of a song alongside the real track.
-// A video whose duration lookup fails is kept rather than dropped —
-// better an occasional Short slips through than a flaky API call
-// silently empties someone's search results.
-export const excludeYoutubeShorts = async (videos) => {
-
-    const ids = videos.map((v) => v.videoId).filter(Boolean);
-    const durationById = await getVideoDurationsSeconds(ids);
-
-    return videos.filter((v) => {
-        const seconds = durationById[v.videoId];
-        return seconds == null || seconds > 60;
-    });
 
 };
 
@@ -244,7 +192,7 @@ export const searchYoutubeShorts = async (query, maxResults = 15) => {
             "https://www.googleapis.com/youtube/v3/videos",
             {
                 params: {
-                    part: "contentDetails",
+                    part: "contentDetails,snippet",
                     id: candidateIds.join(","),
                     key: apiKey,
                 },
@@ -253,14 +201,23 @@ export const searchYoutubeShorts = async (query, maxResults = 15) => {
         );
 
         const durationById = {};
+        const categoryById = {};
         (detailsData.items || []).forEach((item) => {
             durationById[item.id] = parseIsoDurationToSeconds(item.contentDetails?.duration);
+            categoryById[item.id] = item.snippet?.categoryId;
         });
+
+        // categoryId "10" is YouTube's own "Music" category — excluded
+        // here so song/music clips (which VEXA Music already covers)
+        // don't also show up mixed into the Shorts feed.
+        const MUSIC_CATEGORY_ID = "10";
 
         return (searchData.items || [])
             .filter((item) => {
                 const seconds = durationById[item.id?.videoId];
-                return seconds != null && seconds > 0 && seconds <= 60;
+                if (seconds == null || seconds <= 0 || seconds > 60) return false;
+                if (categoryById[item.id?.videoId] === MUSIC_CATEGORY_ID) return false;
+                return true;
             })
             .map((item) => ({
                 videoId: item.id.videoId,

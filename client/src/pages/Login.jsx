@@ -15,18 +15,12 @@ function Login() {
 
     // Login Function
     const handleLogin = async () => {
-        console.log({
-            email,
-            password
-        });
         try {
 
             const data = await loginUser({
                 email,
                 password,
             });
-
-            console.log(data);
 
             localStorage.setItem("token", data.token);
             localStorage.setItem("role", data.user?.role || "user");
@@ -46,8 +40,11 @@ function Login() {
             navigate("/");
 
         } catch (error) {
-            console.log("Full Error:", error);
-            console.log("Response:", error.response);
+
+            if (error.response?.data?.requiresVerification) {
+                navigate("/verify-email", { state: { email: error.response.data.email || email } });
+                return;
+            }
 
             alert(error.response?.data?.message || "Login Failed");
         }

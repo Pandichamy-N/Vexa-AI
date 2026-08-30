@@ -181,14 +181,14 @@ function VexaMusic() {
             </div>
 
             <div
-                className="flex items-center gap-1 overflow-x-auto no-scrollbar rounded-full p-1 mb-4 sm:mb-8 sm:w-fit border"
+                className="flex flex-wrap rounded-full p-1 mb-8 w-fit border"
                 style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)" }}
             >
                 {TABS.map((tb) => (
                     <button
                         key={tb.key}
                         onClick={() => setTab(tb.key)}
-                        className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm whitespace-nowrap shrink-0 transition-all ${tab === tb.key ? "brand-btn" : ""}`}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all ${tab === tb.key ? "brand-btn" : ""}`}
                         style={tab !== tb.key ? { color: "var(--color-text-muted)" } : {}}
                     >
                         {tb.icon}

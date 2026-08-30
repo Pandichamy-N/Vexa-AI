@@ -1,6 +1,6 @@
 import Track from "../models/Track.js";
 import User from "../models/User.js";
-import { searchYoutubeVideos, excludeYoutubeShorts } from "../services/youtubeService.js";
+import { searchYoutubeVideos } from "../services/youtubeService.js";
 import { pickNextTracks } from "../services/aiService.js";
 
 // A single "key" that uniquely identifies a track — used for both the
@@ -82,17 +82,12 @@ export const searchMusic = async (req, res) => {
             return res.status(400).json({ success: false, message: "Query is required" });
         }
 
-        const youtubeResult = await searchYoutubeVideos(q, 25, pageToken).catch((error) => {
+        const youtubeResult = await searchYoutubeVideos(q, 25, pageToken, "10").catch((error) => {
             console.error("YouTube music search failed:", error.message);
             return { videos: [], nextPageToken: null };
         });
 
-        // A plain YouTube search returns Shorts clips mixed in with real
-        // songs — Music should only ever show the latter. isShort videos
-        // belong exclusively to the dedicated Shorts feed.
-        const songsOnly = await excludeYoutubeShorts(youtubeResult.videos);
-
-        const normalizedYoutube = songsOnly.map(normalizeYoutubeTrack);
+        const normalizedYoutube = youtubeResult.videos.map(normalizeYoutubeTrack);
 
         const tracks = await upsertTracks(normalizedYoutube);
 
@@ -123,7 +118,6 @@ export const getMusicNextTracks = async (req, res) => {
     try {
 
         const { id } = req.params;
-        const excludeIds = (req.query.exclude || "").split(",").filter(Boolean);
 
         const currentTrack = await Track.findById(id);
 
@@ -133,14 +127,12 @@ export const getMusicNextTracks = async (req, res) => {
 
         const searchTerm = currentTrack.artist || currentTrack.title;
 
-        const youtubeResult = await searchYoutubeVideos(searchTerm, 20).catch((error) => {
+        const youtubeResult = await searchYoutubeVideos(searchTerm, 20, null, "10").catch((error) => {
             console.error("Music next-up candidate search failed:", error.message);
             return { videos: [] };
         });
 
-        const songsOnly = await excludeYoutubeShorts(youtubeResult.videos);
-
-        const normalized = songsOnly
+        const normalized = youtubeResult.videos
             .map(normalizeYoutubeTrack)
             .filter((t) => t.youtubeId !== currentTrack.youtubeId);
 
@@ -148,17 +140,7 @@ export const getMusicNextTracks = async (req, res) => {
             return res.status(200).json({ success: true, tracks: [], source: "none" });
         }
 
-        const upserted = await upsertTracks(normalized);
-
-        // Same-artist searches tend to return largely the same handful
-        // of videos every time — without this, a session can ping-pong
-        // back to a track that already played a minute ago the moment
-        // the queue runs out again.
-        const candidateTracks = upserted.filter((t) => !excludeIds.includes(t._id.toString()));
-
-        if (candidateTracks.length === 0) {
-            return res.status(200).json({ success: true, tracks: [], source: "none" });
-        }
+        const candidateTracks = await upsertTracks(normalized);
 
         try {
 

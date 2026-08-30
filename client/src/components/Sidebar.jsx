@@ -46,7 +46,7 @@ function Sidebar({ onNavigate }) {
 
     return (
         <aside
-            className="w-64 min-h-full border-r shrink-0"
+            className="w-64 h-screen border-r shrink-0"
             style={{
                 backgroundColor: "var(--color-surface)",
                 borderColor: "var(--color-border)",
@@ -54,7 +54,7 @@ function Sidebar({ onNavigate }) {
         >
 
             {/* Close button — only shows on the mobile/tablet drawer */}
-            <div className="flex justify-end p-2.5 lg:p-3 lg:hidden">
+            <div className="flex justify-end p-3 lg:hidden">
                 <button
                     onClick={onNavigate}
                     className="w-9 h-9 rounded-full flex items-center justify-center"
@@ -64,7 +64,7 @@ function Sidebar({ onNavigate }) {
                 </button>
             </div>
 
-            <div className="px-3 pb-3 lg:p-4 lg:pt-4">
+            <div className="p-4 pt-0 lg:pt-4">
 
                 {menuItems.map((item) => (
 
@@ -74,7 +74,7 @@ function Sidebar({ onNavigate }) {
                         end={item.path === "/"}
                         onClick={onNavigate}
                         className={({ isActive }) =>
-                            `flex items-center gap-3 lg:gap-4 px-3.5 py-2 lg:px-4 lg:py-3 rounded-xl mb-0.5 lg:mb-1 text-sm transition-colors duration-150 ${
+                            `flex items-center gap-4 px-4 py-3 rounded-xl mb-1 text-sm transition-colors duration-150 ${
                                 isActive ? "font-semibold" : ""
                             }`
                         }
@@ -89,7 +89,7 @@ function Sidebar({ onNavigate }) {
                                 }
                         }
                     >
-                        <span className="text-base lg:text-lg">{item.icon}</span>
+                        <span className="text-lg">{item.icon}</span>
                         <span>{item.name}</span>
                     </NavLink>
 

@@ -92,17 +92,6 @@ h1, h2, h3, h4, h5, h6 {
     background: transparent;
 }
 
-/* Fully hides the scrollbar — used for horizontally-scrollable strips
-   (mobile tab chips, the Shorts vertical feed) that rely on the scroll
-   gesture itself for navigation, not a visible scrollbar. */
-.no-scrollbar {
-    scrollbar-width: none;
-}
-
-.no-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-
 /* Respect reduced-motion preferences */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
