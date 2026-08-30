@@ -40,6 +40,7 @@ function Register() {
 
             // Registration no longer logs the person straight in — an
             // email verification code has to be entered first.
+            if (data.message) alert(data.message);
             navigate("/verify-email", { state: { email: data.email || email } });
 
         } catch (error) {

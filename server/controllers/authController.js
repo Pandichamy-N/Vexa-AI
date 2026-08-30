@@ -68,9 +68,12 @@ export const registerUser = async (req, res) => {
             emailVerified: false,
         });
 
+        let emailSent = true;
+
         try {
             await generateAndSendOtp(user);
         } catch (emailError) {
+            emailSent = false;
             console.error("Failed to send verification email:", emailError.message);
             // Registration still succeeds — they can use "Resend code"
             // once email sending is fixed/configured, rather than
@@ -79,7 +82,9 @@ export const registerUser = async (req, res) => {
 
         res.status(201).json({
             success: true,
-            message: "Verification code sent to your email.",
+            message: emailSent
+                ? "Verification code sent to your email."
+                : "Account created, but the verification email couldn't be sent. Try 'Resend' on the next screen.",
             requiresVerification: true,
             email: user.email,
         });
@@ -216,7 +221,7 @@ export const loginUser = async (req, res) => {
         if (!user) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid email or password",
+                message: "This email is not registered. Please create an account first.",
             });
         }
 
