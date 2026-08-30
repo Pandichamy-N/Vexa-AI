@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://vexa-ai-tau.vercel.app/</loc>
+    <loc>https://vexa-ai-vexa-ai1.vercel.app/</loc>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://vexa-ai-tau.vercel.app/trending</loc>
+    <loc>https://vexa-ai-vexa-ai1.vercel.app/trending</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://vexa-ai-tau.vercel.app/shorts</loc>
+    <loc>https://vexa-ai-vexa-ai1.vercel.app/shorts</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://vexa-ai-tau.vercel.app/music</loc>
+    <loc>https://vexa-ai-vexa-ai1.vercel.app/music</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://vexa-ai-tau.vercel.app/categories</loc>
+    <loc>https://vexa-ai-vexa-ai1.vercel.app/categories</loc>
     <priority>0.6</priority>
   </url>
 </urlset>

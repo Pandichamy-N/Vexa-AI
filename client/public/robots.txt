@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://vexa-ai-tau.vercel.app/sitemap.xml
+Sitemap: https://vexa-ai-vexa-ai1.vercel.app/sitemap.xml
