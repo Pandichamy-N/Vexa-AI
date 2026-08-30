@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Env files — never commit secrets (JWT_SECRET, DB creds, API keys)
+.env
+.env.local
+.env.*.local
+
+# User-uploaded files (served from /uploads locally before going to Cloudinary)
+uploads/*
+!uploads/.gitkeep
+
+# Editor/OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Logs
+npm-debug.log*
+logs/
+*.log
