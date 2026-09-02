@@ -376,17 +376,48 @@ export const getTopPicks = async (req, res) => {
 
         const candidates = await Video.find({ category: { $in: user.interests } })
             .populate("user", "name email subscribers")
-            .limit(150);
+            .limit(300);
 
         const searchPopularity = await getSearchPopularityByCategory();
 
-        const ranked = candidates
-            .map((video) => ({ video, score: computeTrendingScore(video, searchPopularity).score }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 20)
-            .map(({ video }) => video);
+        // Rank within each selected category separately, then interleave
+        // (round-robin) across categories instead of pooling everything
+        // into one global sort. A pure global sort lets whichever
+        // category happens to have the most videos in the DB (usually
+        // Music, since that's what most synced channels produce) crowd
+        // out every other category someone picked — so two people who
+        // picked completely different categories could end up seeing an
+        // almost identical, Music-heavy feed. Interleaving guarantees
+        // every category the person actually selected shows up, as long
+        // as at least one video exists for it.
+        const byCategory = {};
+        for (const category of user.interests) {
+            byCategory[category] = candidates
+                .filter((video) => video.category === category)
+                .map((video) => ({ video, score: computeTrendingScore(video, searchPopularity).score }))
+                .sort((a, b) => b.score - a.score)
+                .map((s) => s.video);
+        }
 
-        res.status(200).json({ videos: ranked, needsOnboarding: false });
+        const ranked = [];
+        let addedInRound = true;
+        while (ranked.length < 20 && addedInRound) {
+            addedInRound = false;
+            for (const category of user.interests) {
+                const bucket = byCategory[category];
+                if (bucket && bucket.length) {
+                    ranked.push(bucket.shift());
+                    addedInRound = true;
+                    if (ranked.length >= 20) break;
+                }
+            }
+        }
+
+        res.status(200).json({
+            videos: ranked,
+            needsOnboarding: false,
+            categoriesWithNoContent: user.interests.filter((c) => !candidates.some((v) => v.category === c)),
+        });
 
     } catch (error) {
         console.error(error);
