@@ -1,10 +1,12 @@
 import { useContext, useEffect, useState } from "react";
 import {
     FaUsers, FaVideo, FaEye, FaThumbsUp, FaSync, FaTrash, FaShieldAlt,
+    FaHistory, FaTimes,
 } from "react-icons/fa";
 import {
     getAdminOverview,
     getAllUsersAdmin,
+    getUserDetailAdmin,
     setUserRoleAdmin,
     deleteUserAdmin,
     getAllVideosAdmin,
@@ -14,10 +16,11 @@ import {
     toggleSyncChannelAdmin,
     removeSyncChannelAdmin,
     triggerSyncAdmin,
+    getAuditLogAdmin,
 } from "../api/adminApi";
 import { LanguageContext } from "../context/LanguageContext";
 
-const TABS = ["Overview", "Videos", "Users", "Auto-Fetch"];
+const TABS = ["Overview", "Videos", "Users", "Auto-Fetch", "Audit Log"];
 
 function AdminDashboard() {
 
@@ -30,6 +33,9 @@ function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [newChannel, setNewChannel] = useState({ channelId: "", label: "", fallbackCategory: "General" });
+    const [auditLog, setAuditLog] = useState([]);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [selectedUserLoading, setSelectedUserLoading] = useState(false);
 
     useEffect(() => {
         loadForTab(tab);
@@ -52,12 +58,29 @@ function AdminDashboard() {
             } else if (activeTab === "Auto-Fetch") {
                 const res = await getSyncChannelsAdmin();
                 setChannels(res.data.channels);
+            } else if (activeTab === "Audit Log") {
+                const res = await getAuditLogAdmin();
+                setAuditLog(res.data.logs);
             }
 
         } catch (error) {
             console.log(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleViewUser = async (userId) => {
+        try {
+            setSelectedUserLoading(true);
+            setSelectedUser({}); // opens the modal immediately with a loading state
+            const res = await getUserDetailAdmin(userId);
+            setSelectedUser(res.data.user);
+        } catch (error) {
+            alert(error.response?.data?.message || "Couldn't load that user's details");
+            setSelectedUser(null);
+        } finally {
+            setSelectedUserLoading(false);
         }
     };
 
@@ -222,14 +245,15 @@ function AdminDashboard() {
                             {users.map((u) => (
                                 <div
                                     key={u._id}
-                                    className="flex items-center justify-between gap-4 p-4 rounded-xl border"
+                                    onClick={() => handleViewUser(u._id)}
+                                    className="flex items-center justify-between gap-4 p-4 rounded-xl border cursor-pointer hover:opacity-90"
                                     style={cardStyle}
                                 >
                                     <div>
                                         <p className="font-medium" style={{ color: "var(--color-text)" }}>{u.name}</p>
                                         <p className="text-xs" style={{ color: "var(--color-text-faint)" }}>{u.email}</p>
                                     </div>
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                                         <span
                                             className="text-xs px-2.5 py-1 rounded-full"
                                             style={{
@@ -353,7 +377,128 @@ function AdminDashboard() {
                         </div>
                     )}
 
+                    {/* ================= AUDIT LOG ================= */}
+                    {tab === "Audit Log" && (
+                        <div className="space-y-2">
+                            {auditLog.length === 0 ? (
+                                <p style={{ color: "var(--color-text-muted)" }}>No admin actions logged yet.</p>
+                            ) : (
+                                auditLog.map((log) => (
+                                    <div
+                                        key={log._id}
+                                        className="flex items-start gap-3 p-3 rounded-xl border"
+                                        style={cardStyle}
+                                    >
+                                        <FaHistory className="mt-1 shrink-0" style={{ color: "var(--color-text-faint)" }} size={14} />
+                                        <div className="min-w-0">
+                                            <p className="text-sm" style={{ color: "var(--color-text)" }}>
+                                                <span className="font-medium">{log.admin?.name || "Unknown admin"}</span>
+                                                {" "}— {log.action.replace(/_/g, " ")}
+                                                {log.target && <> — <span style={{ color: "var(--color-text-muted)" }}>{log.target}</span></>}
+                                            </p>
+                                            {log.details && (
+                                                <p className="text-xs" style={{ color: "var(--color-text-faint)" }}>{log.details}</p>
+                                            )}
+                                            <p className="text-xs mt-1" style={{ color: "var(--color-text-faint)" }}>
+                                                {new Date(log.createdAt).toLocaleString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    )}
+
                 </>
+            )}
+
+            {/* ================= USER DETAIL MODAL ================= */}
+            {selectedUser && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                    style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+                    onClick={() => setSelectedUser(null)}
+                >
+                    <div
+                        className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border p-6"
+                        style={cardStyle}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-bold" style={{ color: "var(--color-text)" }}>User details</h2>
+                            <button onClick={() => setSelectedUser(null)} style={{ color: "var(--color-text-muted)" }}>
+                                <FaTimes />
+                            </button>
+                        </div>
+
+                        {selectedUserLoading ? (
+                            <p style={{ color: "var(--color-text-muted)" }}>Loading...</p>
+                        ) : (
+                            <div className="space-y-4">
+
+                                <div>
+                                    <p className="font-semibold" style={{ color: "var(--color-text)" }}>{selectedUser.name}</p>
+                                    <p className="text-sm" style={{ color: "var(--color-text-faint)" }}>{selectedUser.email}</p>
+                                    <p className="text-xs mt-1" style={{ color: "var(--color-text-faint)" }}>
+                                        Role: {selectedUser.role} · {selectedUser.isPremium ? "Premium" : "Free"} ·
+                                        {" "}Joined {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString() : "—"}
+                                    </p>
+                                </div>
+
+                                {selectedUser.interests?.length > 0 && (
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide mb-1" style={{ color: "var(--color-text-faint)" }}>
+                                            Selected categories
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {selectedUser.interests.map((i) => (
+                                                <span key={i} className="text-xs px-2.5 py-1 rounded-full" style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-text-muted)" }}>
+                                                    {i}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-2 gap-3 text-center">
+                                    {[
+                                        { label: "Uploaded", value: selectedUser.uploadedVideoCount ?? 0 },
+                                        { label: "Watch history", value: selectedUser.history?.length || 0 },
+                                        { label: "Liked", value: selectedUser.likedVideos?.length || 0 },
+                                        { label: "Favorites", value: selectedUser.favorites?.length || 0 },
+                                    ].map((s) => (
+                                        <div key={s.label} className="rounded-lg p-3" style={{ backgroundColor: "var(--color-surface-2)" }}>
+                                            <p className="text-lg font-bold" style={{ color: "var(--color-text)" }}>{s.value}</p>
+                                            <p className="text-xs" style={{ color: "var(--color-text-faint)" }}>{s.label}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide mb-2" style={{ color: "var(--color-text-faint)" }}>
+                                        Watch history (most recent)
+                                    </p>
+                                    {selectedUser.history?.length ? (
+                                        <div className="space-y-2">
+                                            {[...selectedUser.history].reverse().slice(0, 10).map((v) => (
+                                                <div key={v._id} className="flex items-center gap-3">
+                                                    <img src={v.thumbnail} alt={v.title} className="w-16 h-9 object-cover rounded shrink-0" />
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm truncate" style={{ color: "var(--color-text)" }}>{v.title}</p>
+                                                        <p className="text-xs" style={{ color: "var(--color-text-faint)" }}>{v.category}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm" style={{ color: "var(--color-text-faint)" }}>No watch history yet.</p>
+                                    )}
+                                </div>
+
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
 
         </div>

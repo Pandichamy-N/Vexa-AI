@@ -4,6 +4,7 @@ import { adminOnly } from "../middleware/adminMiddleware.js";
 import {
     getAdminOverview,
     getAllUsers,
+    getUserDetail,
     setUserRole,
     deleteUser,
     getAllVideosForAdmin,
@@ -14,6 +15,7 @@ import {
     toggleSyncChannel,
     removeSyncChannel,
     triggerSync,
+    getAuditLog,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -24,8 +26,11 @@ router.use(protect, adminOnly);
 router.get("/overview", getAdminOverview);
 
 router.get("/users", getAllUsers);
+router.get("/users/:id", getUserDetail);
 router.put("/users/:id/role", setUserRole);
 router.delete("/users/:id", deleteUser);
+
+router.get("/audit-log", getAuditLog);
 
 router.get("/videos", getAllVideosForAdmin);
 router.delete("/videos/:id", adminDeleteVideo);
