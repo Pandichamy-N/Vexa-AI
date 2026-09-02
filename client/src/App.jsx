@@ -3,6 +3,8 @@ import { Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Home from "./pages/Home";
 import Trending from "./pages/Trending";
+import Help from "./pages/Help";
+import Contact from "./pages/Contact";
 import Shorts from "./pages/Shorts";
 import Categories from "./pages/Categories";
 import Favorites from "./pages/Favorites";
@@ -71,6 +73,16 @@ function App() {
         <Route
           path="trending"
           element={<Trending />}
+        />
+
+        {/* Help & Contact */}
+        <Route
+          path="help"
+          element={<Help />}
+        />
+        <Route
+          path="contact"
+          element={<Contact />}
         />
 
         {/* Shorts */}

@@ -378,6 +378,20 @@ function MusicPlayerBar() {
 
                     </div>
 
+                    {/* Mobile-only progress line — desktop already shows
+                        this inline within the controls row above (md:) */}
+                    <div className="flex md:hidden items-center gap-2 px-4 pb-2.5 -mt-1">
+                        <span className="text-[10px] w-8 text-right shrink-0" style={{ color: "var(--color-text-faint)" }}>
+                            {formatTime(progress)}
+                        </span>
+                        <div onClick={handleSeek} className="flex-1 h-1 rounded-full cursor-pointer" style={{ backgroundColor: "var(--color-surface-2)" }}>
+                            <div className="h-full rounded-full" style={{ width: `${progressPct}%`, backgroundColor: "var(--color-brand)" }} />
+                        </div>
+                        <span className="text-[10px] w-8 shrink-0" style={{ color: "var(--color-text-faint)" }}>
+                            {formatTime(duration)}
+                        </span>
+                    </div>
+
                 </>
 
             )}

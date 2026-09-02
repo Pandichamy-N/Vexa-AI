@@ -13,8 +13,13 @@ export const searchMusic = (query, pageToken = null) =>
 
 // AI-curated "up next" — a blended, mood-matched continuation instead
 // of just the next item in whatever list the track was played from.
-export const getMusicNextTracks = (trackId) =>
-    axios.get(`${API_URL}/next-up/${trackId}`, authHeaders());
+// excludeIds: recently-played track ids in this session, so a song
+// that just played can't immediately loop back around as "next".
+export const getMusicNextTracks = (trackId, excludeIds = []) =>
+    axios.get(`${API_URL}/next-up/${trackId}`, {
+        ...authHeaders(),
+        params: excludeIds.length ? { excludeIds: excludeIds.join(",") } : {},
+    });
 
 // ================= FAVORITES =================
 export const getFavoriteTracks = () => axios.get(`${API_URL}/favorites`, authHeaders());

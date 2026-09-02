@@ -22,6 +22,8 @@ export const getProfile = async (req, res) => {
                 name: user.name,
                 email: user.email,
                 profilePic: user.profilePic,
+                bio: user.bio,
+                channelLinks: user.channelLinks,
                 role: user.role,
                 watchLaterCount: user.watchLater.length,
                 historyCount: user.history.length,
@@ -37,6 +39,92 @@ export const getProfile = async (req, res) => {
                 musicFollowersCount: user.musicFollowers.length,
                 musicFollowingCount: user.musicFollowing.length,
             },
+        });
+
+    } catch (error) {
+
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+
+    }
+};
+
+// ================= UPDATE CHANNEL INFO (name, bio, links) =================
+export const updateChannelInfo = async (req, res) => {
+    try {
+
+        const { name, bio, channelLinks } = req.body;
+
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
+
+        if (typeof name === "string" && name.trim()) {
+            user.name = name.trim();
+        }
+
+        if (typeof bio === "string") {
+            user.bio = bio.slice(0, 500);
+        }
+
+        if (Array.isArray(channelLinks)) {
+            // Keep only well-formed, non-empty entries — up to 5, same
+            // as YouTube's channel links cap.
+            user.channelLinks = channelLinks
+                .filter((l) => l && typeof l.url === "string" && l.url.trim())
+                .slice(0, 5)
+                .map((l) => ({
+                    label: (l.label || "").trim().slice(0, 40) || l.url.trim(),
+                    url: l.url.trim(),
+                }));
+        }
+
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            user: {
+                name: user.name,
+                bio: user.bio,
+                channelLinks: user.channelLinks,
+            },
+        });
+
+    } catch (error) {
+
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+
+    }
+};
+
+// ================= CHANNEL FOLLOWERS LIST (public) =================
+export const getChannelFollowers = async (req, res) => {
+    try {
+
+        const channel = await User.findById(req.params.userId)
+            .select("subscribers")
+            .populate("subscribers", "name profilePic");
+
+        if (!channel) {
+            return res.status(404).json({
+                success: false,
+                message: "Channel not found",
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            followers: channel.subscribers,
         });
 
     } catch (error) {

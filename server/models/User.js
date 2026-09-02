@@ -47,6 +47,22 @@ const userSchema = new mongoose.Schema(
             default: "",
         },
 
+        // ================= CHANNEL INFO (public-facing) =================
+        bio: {
+            type: String,
+            default: "",
+            maxlength: 500,
+        },
+
+        // YouTube-style "Links" section on a channel page — each one
+        // shown as a clickable pill/button on ChannelPage.
+        channelLinks: [
+            {
+                label: { type: String, trim: true },
+                url: { type: String, trim: true },
+            },
+        ],
+
         role: {
             type: String,
             enum: ["user", "admin"],

@@ -258,7 +258,10 @@ export const deleteVideo = (id) => {
 
 
 export const getChannelVideos = (userId) => {
-    return axios.get(`${API_URL}/channel/${userId}`);
+    const token = localStorage.getItem("token");
+    return axios.get(`${API_URL}/channel/${userId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
 };
 
 export const getDashboard = async () => {

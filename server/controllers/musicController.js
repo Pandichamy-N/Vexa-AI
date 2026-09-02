@@ -125,6 +125,23 @@ export const getMusicNextTracks = async (req, res) => {
             return res.status(404).json({ success: false, message: "Track not found" });
         }
 
+        // Recently-played track ids from this listening session (sent by
+        // the player) — without this, "similar songs" for track B could
+        // easily resurface track A right after it, causing an A→B→A→B
+        // loop instead of an actually-continuing mix.
+        const recentIds = typeof req.query.excludeIds === "string"
+            ? req.query.excludeIds.split(",").filter(Boolean)
+            : [];
+
+        const recentTracks = recentIds.length
+            ? await Track.find({ _id: { $in: recentIds } }).select("youtubeId")
+            : [];
+
+        const excludedYoutubeIds = new Set([
+            currentTrack.youtubeId,
+            ...recentTracks.map((t) => t.youtubeId),
+        ]);
+
         const searchTerm = currentTrack.artist || currentTrack.title;
 
         const youtubeResult = await searchYoutubeVideos(searchTerm, 20, null, "10").catch((error) => {
@@ -134,7 +151,7 @@ export const getMusicNextTracks = async (req, res) => {
 
         const normalized = youtubeResult.videos
             .map(normalizeYoutubeTrack)
-            .filter((t) => t.youtubeId !== currentTrack.youtubeId);
+            .filter((t) => !excludedYoutubeIds.has(t.youtubeId));
 
         if (normalized.length === 0) {
             return res.status(200).json({ success: true, tracks: [], source: "none" });

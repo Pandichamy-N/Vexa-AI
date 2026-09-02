@@ -14,6 +14,8 @@ import {
     FaShieldAlt,
     FaCrown,
     FaTimes,
+    FaQuestionCircle,
+    FaEnvelope,
 } from "react-icons/fa";
 
 import { useContext } from "react";
@@ -90,6 +92,28 @@ function Sidebar({ onNavigate }) {
                         }
                     >
                         <span className="text-lg">{item.icon}</span>
+                        <span>{item.name}</span>
+                    </NavLink>
+
+                ))}
+
+                <div className="my-3 border-t" style={{ borderColor: "var(--color-border-soft)" }} />
+
+                {[
+                    { icon: <FaQuestionCircle />, name: "Help", path: "/help" },
+                    { icon: <FaEnvelope />, name: "Contact Support", path: "/contact" },
+                ].map((item) => (
+
+                    <NavLink
+                        key={item.name}
+                        to={item.path}
+                        onClick={onNavigate}
+                        className="flex items-center gap-4 px-4 py-2.5 rounded-xl mb-1 text-sm transition-colors duration-150"
+                        style={({ isActive }) => ({
+                            color: isActive ? "var(--color-brand)" : "var(--color-text-faint)",
+                        })}
+                    >
+                        <span className="text-base">{item.icon}</span>
                         <span>{item.name}</span>
                     </NavLink>
 

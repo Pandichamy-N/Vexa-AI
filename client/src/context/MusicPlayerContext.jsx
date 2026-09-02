@@ -73,6 +73,9 @@ function MusicPlayerProvider({ children }) {
     // before). Kept in sync every render.
     const currentTrackRef = useRef(null);
     const currentSourceRef = useRef("list"); // "playlist" | "list" — see playTrack
+    // Rolling history of recently-played track ids this session — passed
+    // to the AI blend endpoint so a song can't loop right back as "next".
+    const recentlyPlayedIdsRef = useRef([]);
     const queueRef = useRef([]);
     const autoNextRef = useRef(true);
     const repeatRef = useRef("off");
@@ -211,6 +214,13 @@ function MusicPlayerProvider({ children }) {
         setIsPlaying(true);
         playsSinceAdRef.current += 1;
 
+        // Keep the last 15 played ids — used to keep the AI blend from
+        // looping back to something that just played.
+        recentlyPlayedIdsRef.current = [
+            track._id,
+            ...recentlyPlayedIdsRef.current.filter((id) => id !== track._id),
+        ].slice(0, 15);
+
         recordRecentlyPlayed(track._id).catch(() => {});
 
     }, []);
@@ -264,7 +274,7 @@ function MusicPlayerProvider({ children }) {
 
             setQueueLoading(true);
 
-            const res = await getMusicNextTracks(track._id);
+            const res = await getMusicNextTracks(track._id, recentlyPlayedIdsRef.current);
             const aiTracks = res.data?.tracks || [];
 
             if (aiTracks.length > 0) {
@@ -287,7 +297,7 @@ function MusicPlayerProvider({ children }) {
             setQueueLoading(true);
 
             const res = await searchMusic(track.artist || track.title);
-            const more = (res.data?.tracks || []).filter((t) => t._id !== track._id);
+            const more = (res.data?.tracks || []).filter((t) => !recentlyPlayedIdsRef.current.includes(t._id));
 
             if (more.length > 0) {
                 const extendedQueue = [...currentQueue, ...more];

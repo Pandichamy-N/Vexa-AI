@@ -1,11 +1,10 @@
 import { useContext, useEffect, useState } from "react";
 import {
-    FaSearch, FaCrown, FaHeart, FaList, FaCompass, FaHistory, FaPlus,
+    FaSearch, FaCrown, FaHeart, FaList, FaCompass, FaHistory,
 } from "react-icons/fa";
 import { Link } from "react-router-dom";
 import MusicCard from "../components/MusicCard";
 import VexaMusicLogo from "../components/VexaMusicLogo";
-import AddMusicModal from "../components/AddMusicModal";
 import { searchMusic, getFavoriteTracks, getRecentlyPlayed } from "../api/musicApi";
 import { getProfile } from "../services/userService";
 import { getMyPlaylists, createPlaylist, getPlaylistById } from "../services/playlistService";
@@ -26,7 +25,6 @@ function VexaMusic() {
 
     const [tab, setTab] = useState("browse");
     const [isPremium, setIsPremium] = useState(false);
-    const [showAddMusic, setShowAddMusic] = useState(false);
 
     const [query, setQuery] = useState("");
     const [searchResults, setSearchResults] = useState(null);
@@ -162,7 +160,6 @@ function VexaMusic() {
     };
 
     return (
-        <>
         <div>
 
             <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
@@ -174,22 +171,12 @@ function VexaMusic() {
                     </h1>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setShowAddMusic(true)}
-                        className="flex items-center gap-2 brand-btn px-4 py-2 rounded-full text-sm"
-                    >
-                        <FaPlus size={12} />
-                        Add Music
-                    </button>
-
-                    {!isPremium && (
-                        <Link to="/premium" className="flex items-center gap-2 ai-btn px-4 py-2 rounded-full text-sm">
-                            <FaCrown size={12} />
-                            {t("ad_go_premium")}
-                        </Link>
-                    )}
-                </div>
+                {!isPremium && (
+                    <Link to="/premium" className="flex items-center gap-2 ai-btn px-4 py-2 rounded-full text-sm">
+                        <FaCrown size={12} />
+                        {t("ad_go_premium")}
+                    </Link>
+                )}
 
             </div>
 
@@ -408,23 +395,6 @@ function VexaMusic() {
             )}
 
         </div>
-
-            {showAddMusic && (
-                <AddMusicModal
-                    onClose={() => setShowAddMusic(false)}
-                    onAdded={() => {
-                        setShowAddMusic(false);
-                        showToast("Music added", "success");
-                        // Recently Played / Liked lists are per-user activity,
-                        // not affected by an add — but if someone's sitting on
-                        // the browse tab with old search results open, back
-                        // them out so the fresh track is discoverable again.
-                        setSearchResults(null);
-                        setQuery("");
-                    }}
-                />
-            )}
-        </>
     );
 }
 

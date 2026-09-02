@@ -15,6 +15,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import musicRoutes from "./routes/musicRoutes.js";
+import contactRoutes from "./routes/contactRoutes.js";
 import { runYoutubeSync } from "./services/syncService.js";
 import {
     securityHeaders,
@@ -95,6 +96,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/music", musicRoutes);
+app.use("/api/contact", contactRoutes);
 
 // Test Route
 app.get("/", (req, res) => {

@@ -90,7 +90,7 @@ router.get(
 );
 router.get("/myvideos", protect, getMyVideos);
 
-router.get("/channel/:userId", getChannelVideos);
+router.get("/channel/:userId", optionalAuth, getChannelVideos);
 
 // ================= SHORTS FEED =================
 // Must stay above the "/:id" route below, or "/shorts" would be parsed

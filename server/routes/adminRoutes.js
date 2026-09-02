@@ -4,7 +4,6 @@ import { adminOnly } from "../middleware/adminMiddleware.js";
 import {
     getAdminOverview,
     getAllUsers,
-    getUserDetail,
     setUserRole,
     deleteUser,
     getAllVideosForAdmin,
@@ -15,7 +14,8 @@ import {
     toggleSyncChannel,
     removeSyncChannel,
     triggerSync,
-    getAuditLog,
+    getContactMessages,
+    resolveContactMessage,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -26,11 +26,8 @@ router.use(protect, adminOnly);
 router.get("/overview", getAdminOverview);
 
 router.get("/users", getAllUsers);
-router.get("/users/:id", getUserDetail);
 router.put("/users/:id/role", setUserRole);
 router.delete("/users/:id", deleteUser);
-
-router.get("/audit-log", getAuditLog);
 
 router.get("/videos", getAllVideosForAdmin);
 router.delete("/videos/:id", adminDeleteVideo);
@@ -41,5 +38,8 @@ router.post("/sync-channels", addSyncChannel);
 router.put("/sync-channels/:id/toggle", toggleSyncChannel);
 router.delete("/sync-channels/:id", removeSyncChannel);
 router.post("/sync-now", triggerSync);
+
+router.get("/contact-messages", getContactMessages);
+router.put("/contact-messages/:id/resolve", resolveContactMessage);
 
 export default router;
