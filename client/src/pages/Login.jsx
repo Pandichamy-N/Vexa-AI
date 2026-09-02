@@ -2,6 +2,7 @@ import { useContext, useState } from "react";
 import { loginUser } from "../services/authService";
 import { getProfile } from "../services/userService";
 import { Link, useNavigate } from "react-router-dom";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { LanguageContext } from "../context/LanguageContext";
 import VexaLogo from "../components/VexaLogo";
@@ -11,6 +12,7 @@ function Login() {
     const { t, language } = useContext(LanguageContext);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const navigate = useNavigate();
 
     // Login Function
@@ -77,13 +79,30 @@ function Login() {
                     className="w-full p-3 rounded-lg mb-4 border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
                 />
 
-                <input
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full p-3 rounded-lg mb-4 border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
-                />
+                <div className="relative mb-2">
+                    <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full p-3 pr-11 rounded-lg border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        style={{ color: "var(--color-text-faint)" }}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                        {showPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                    </button>
+                </div>
+
+                <div className="text-right mb-4">
+                    <Link to="/forgot-password" className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                        Forgot password?
+                    </Link>
+                </div>
 
                 <button
                     onClick={handleLogin}

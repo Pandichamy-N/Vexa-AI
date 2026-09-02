@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import validator from "validator";
 import generateToken from "../utils/generateToken.js";
-import { sendOtpEmail } from "../services/emailService.js";
+import { sendOtpEmail, sendPasswordResetEmail } from "../services/emailService.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -263,6 +263,124 @@ export const loginUser = async (req, res) => {
     } catch (error) {
         console.error(error);
 
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+const RESET_TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
+
+// ================= FORGOT PASSWORD (request reset link) =================
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (typeof email !== "string" || !email.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Email is required",
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+        // Same response whether or not the account exists — avoids
+        // leaking which emails are registered.
+        const genericMessage = "If that email has a VEXA account, a reset link has been sent.";
+
+        if (!user) {
+            return res.status(200).json({ success: true, message: genericMessage });
+        }
+
+        const rawToken = crypto.randomBytes(32).toString("hex");
+        user.resetPasswordTokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+        user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
+        await user.save();
+
+        const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+        const resetLink = `${clientUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+
+        try {
+            await sendPasswordResetEmail(user.email, user.name, resetLink);
+        } catch (emailError) {
+            console.error("Failed to send password reset email:", emailError.message);
+        }
+
+        res.status(200).json({ success: true, message: genericMessage });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+// ================= RESET PASSWORD (using the emailed token) =================
+export const resetPassword = async (req, res) => {
+    try {
+        const { email, token, newPassword } = req.body;
+
+        if (
+            typeof email !== "string" || !email ||
+            typeof token !== "string" || !token ||
+            typeof newPassword !== "string" || !newPassword
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Missing required fields",
+            });
+        }
+
+        if (
+            newPassword.length < 8 ||
+            !/[A-Za-z]/.test(newPassword) ||
+            !/[0-9]/.test(newPassword)
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Password must be at least 8 characters and include both letters and numbers.",
+            });
+        }
+
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+
+        if (!user || !user.resetPasswordTokenHash || !user.resetPasswordExpires) {
+            return res.status(400).json({
+                success: false,
+                message: "This reset link is invalid — please request a new one.",
+            });
+        }
+
+        if (user.resetPasswordExpires < new Date()) {
+            return res.status(400).json({
+                success: false,
+                message: "This reset link has expired — please request a new one.",
+            });
+        }
+
+        const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+        if (tokenHash !== user.resetPasswordTokenHash) {
+            return res.status(400).json({
+                success: false,
+                message: "This reset link is invalid — please request a new one.",
+            });
+        }
+
+        user.password = await bcrypt.hash(newPassword, 12);
+        user.resetPasswordTokenHash = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Password reset — you can log in with your new password now.",
+        });
+
+    } catch (error) {
         res.status(500).json({
             success: false,
             message: error.message,

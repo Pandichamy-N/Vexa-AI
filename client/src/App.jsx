@@ -13,6 +13,8 @@ import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import VideoPage from "./pages/VideoPage";
 import UploadVideo from "./pages/UploadVideo";
 import MyUploads from "./pages/MyUploads";
@@ -40,6 +42,8 @@ function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       {/* Onboarding — full-screen, no Navbar/Sidebar, auth required */}
       <Route

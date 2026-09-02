@@ -5,62 +5,24 @@ import SyncChannel from "../models/SyncChannel.js";
 import { fetchChannelLatestVideos, searchYoutubeShorts } from "./youtubeService.js";
 import { generateVideoDescription, generateUploadSuggestions } from "./aiService.js";
 
-// One default channel per onboarding category, so every category
-// someone can pick has real content behind it out of the box.
-// Missing entries get upserted into the admin-managed SyncChannel
-// collection automatically (see ensureDefaultChannelsExist below) —
-// admins can still edit/replace/deactivate any of these from the
-// Admin Dashboard at any time. Override entirely via
-// YT_SYNC_CHANNEL_IDS in .env if preferred.
+// Fallback channels — only used if the admin-managed SyncChannel
+// collection is empty. Override/extend via YT_SYNC_CHANNEL_IDS in .env,
+// or (preferred) manage the list from the Admin Dashboard, which writes
+// to the SyncChannel collection.
 const DEFAULT_SYNC_CHANNELS = [
     { channelId: "UCsBjURrPoezykLs9EqgamOA", label: "Fireship", fallbackCategory: "Programming" },
     { channelId: "UCsXVk37bltHxD1rDPwtNM8Q", label: "Kurzgesagt – In a Nutshell", fallbackCategory: "Education" },
     { channelId: "UCAuUUnT6oDeKwE6v1NGQxug", label: "TED", fallbackCategory: "Education" },
     { channelId: "UC_aEa8K-EOJ3D6gOs7HcyNg", label: "NoCopyrightSounds (VEXA Music)", fallbackCategory: "Music" },
-    { channelId: "UCKy1dAqELo0zrOtPkf0eTMw", label: "IGN", fallbackCategory: "Gaming" },
-    { channelId: "UCBJycsmduvYEL83R_U4JriQ", label: "Marques Brownlee", fallbackCategory: "Technology" },
-    { channelId: "UCOpcACMWblDls9Z6GERVi1A", label: "Screen Junkies", fallbackCategory: "Entertainment" },
-    { channelId: "UCiWLfSweyRNmLpgEHekhoAg", label: "ESPN", fallbackCategory: "Sports" },
-    { channelId: "UCLXo7UDZvByw2ixzpQCufnA", label: "Vox", fallbackCategory: "General" },
 ];
 
 const SYNC_USER_EMAIL = "sync@vexa.app";
 const PER_CHANNEL_LIMIT = 5;
 
 // Resolution order: admin-managed DB list > .env override > built-in
-// defaults. Any DEFAULT_SYNC_CHANNELS entry missing from the DB (by
-// channelId) gets upserted in every run — not just when the collection
-// is totally empty. That matters once an admin has already added their
-// own channels (e.g. regional Music/Entertainment ones): without this,
-// updating DEFAULT_SYNC_CHANNELS in code would never reach an existing
-// deployment, since the old "only seed if empty" check would just see
-// a non-empty collection and skip it forever, leaving categories with
-// no default coverage stuck empty. $setOnInsert + upsert only adds
-// what's missing — it never touches or overwrites channels an admin
-// already configured.
-const ensureDefaultChannelsExist = async () => {
-    await SyncChannel.bulkWrite(
-        DEFAULT_SYNC_CHANNELS.map((c) => ({
-            updateOne: {
-                filter: { channelId: c.channelId },
-                update: {
-                    $setOnInsert: {
-                        channelId: c.channelId,
-                        label: c.label,
-                        fallbackCategory: c.fallbackCategory,
-                        active: true,
-                    },
-                },
-                upsert: true,
-            },
-        })),
-        { ordered: false }
-    );
-};
-
+// defaults. The DB collection is seeded from defaults the first time
+// this runs, so the Admin Dashboard always has something to show/edit.
 const getSyncChannels = async () => {
-
-    await ensureDefaultChannelsExist();
 
     const dbChannels = await SyncChannel.find({ active: true });
 
@@ -77,6 +39,19 @@ const getSyncChannels = async () => {
             .map((id) => id.trim())
             .filter(Boolean)
             .map((channelId) => ({ channelId, fallbackCategory: "General" }));
+    }
+
+    // Nothing configured anywhere yet — seed the DB from defaults so the
+    // Admin Dashboard has real, editable rows from the very first run.
+    const anyExist = await SyncChannel.countDocuments({});
+    if (anyExist === 0) {
+        await SyncChannel.insertMany(
+            DEFAULT_SYNC_CHANNELS.map((c) => ({
+                channelId: c.channelId,
+                label: c.label,
+                fallbackCategory: c.fallbackCategory,
+            }))
+        );
     }
 
     return DEFAULT_SYNC_CHANNELS;

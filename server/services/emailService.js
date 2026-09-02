@@ -50,6 +50,37 @@ export const sendOtpEmail = async (toEmail, name, code) => {
 
 };
 
+// Sends the "reset your password" link — token is embedded in the URL,
+// verified server-side against the hashed copy stored on the user.
+export const sendPasswordResetEmail = async (toEmail, name, resetLink) => {
+
+    const mailer = getTransporter();
+
+    if (!mailer) {
+        throw new Error("Email sending isn't configured on the server yet.");
+    }
+
+    await mailer.sendMail({
+        from: `"VEXA" <${process.env.EMAIL_USER}>`,
+        to: toEmail,
+        subject: "Reset your VEXA password",
+        html: `
+            <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
+                <h2 style="color:#3B82F6;">VEXA</h2>
+                <p>Hi ${name || "there"},</p>
+                <p>We got a request to reset your password. Click below to choose a new one:</p>
+                <p style="margin: 24px 0;">
+                    <a href="${resetLink}" style="background:#3B82F6; color:#fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                        Reset Password
+                    </a>
+                </p>
+                <p>This link expires in 30 minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
+            </div>
+        `,
+    });
+
+};
+
 // Notifies the site admin (same inbox EMAIL_USER sends from) whenever
 // someone submits the Contact/Support form.
 export const sendAdminNotification = async (contactMessage) => {
