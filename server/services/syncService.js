@@ -171,14 +171,43 @@ export const runYoutubeSync = async () => {
 // fixed channels the way the main sync does, they come from search
 // (videoDuration=short, then narrowed to <=60s in youtubeService.js).
 // Requires YOUTUBE_API_KEY (the same key the search feature uses).
+// A much wider pool than we use per run — each sync picks a random
+// subset (see SHORTS_QUERIES_PER_RUN below). The exact same 5 search
+// terms every single time meant YouTube kept returning the same top
+// results, so "Fetch Shorts" barely ever found anything new after the
+// first couple of runs. Randomizing which terms get searched each time
+// spreads coverage across a much bigger slice of YouTube over repeated
+// fetches, so refreshing actually turns up new clips.
 const SHORTS_SEARCH_QUERIES = [
     { query: "shorts", category: "Entertainment" },
-    { query: "tech shorts", category: "Technology" },
-    { query: "life hacks shorts", category: "Education" },
+    { query: "funny shorts", category: "Entertainment" },
+    { query: "viral shorts", category: "Entertainment" },
     { query: "comedy shorts", category: "Entertainment" },
+    { query: "prank shorts", category: "Entertainment" },
+    { query: "tech shorts", category: "Technology" },
+    { query: "coding shorts", category: "Technology" },
+    { query: "gadget shorts", category: "Technology" },
+    { query: "life hacks shorts", category: "Education" },
+    { query: "science shorts", category: "Education" },
+    { query: "history shorts", category: "Education" },
+    { query: "did you know shorts", category: "Education" },
     { query: "gaming shorts", category: "Gaming" },
+    { query: "gameplay shorts", category: "Gaming" },
+    { query: "sports shorts", category: "Sports" },
+    { query: "football shorts", category: "Sports" },
+    { query: "cricket shorts", category: "Sports" },
+    { query: "cooking shorts", category: "Entertainment" },
+    { query: "animal shorts", category: "Entertainment" },
+    { query: "travel shorts", category: "Entertainment" },
 ];
+const SHORTS_QUERIES_PER_RUN = 8;
 const PER_QUERY_LIMIT = 10;
+
+// Picks SHORTS_QUERIES_PER_RUN random, non-repeating entries from the pool.
+const pickRandomQueries = () => {
+    const shuffled = [...SHORTS_SEARCH_QUERIES].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, SHORTS_QUERIES_PER_RUN);
+};
 
 export const runYoutubeShortsSync = async () => {
 
@@ -188,7 +217,7 @@ export const runYoutubeShortsSync = async () => {
     let skipped = 0;
     let failed = 0;
 
-    for (const { query, category } of SHORTS_SEARCH_QUERIES) {
+    for (const { query, category } of pickRandomQueries()) {
 
         let clips = [];
 
