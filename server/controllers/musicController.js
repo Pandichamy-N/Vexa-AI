@@ -144,7 +144,14 @@ export const getMusicNextTracks = async (req, res) => {
 
         const searchTerm = currentTrack.artist || currentTrack.title;
 
-        const youtubeResult = await searchYoutubeVideos(searchTerm, 20, null, "10").catch((error) => {
+        // No videoCategoryId restriction here (unlike searchMusic above) —
+        // that filter is what keeps typed searches on-topic, but for
+        // blending it narrows the pool so much for many artists that
+        // only 1-2 candidates survive, which is what was causing
+        // playback to loop between the same couple of songs. A wider,
+        // unrestricted pool plus the excludedYoutubeIds filter below is
+        // what actually keeps the mix varied.
+        const youtubeResult = await searchYoutubeVideos(searchTerm, 40).catch((error) => {
             console.error("Music next-up candidate search failed:", error.message);
             return { videos: [] };
         });
