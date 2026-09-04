@@ -4,6 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 import "./index.css";
+import "./utils/axiosSetup";
 import SearchProvider from "./context/SearchContext";
 import LanguageProvider from "./context/LanguageContext";
 import ThemeProvider from "./context/ThemeContext";

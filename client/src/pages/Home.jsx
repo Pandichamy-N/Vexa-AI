@@ -10,6 +10,7 @@ import {
     getLatestVideos,
     getMostViewedVideos,
     getHistory,
+    getMostSearched,
 } from "../api/videoApi";
 
 function Home() {
@@ -24,6 +25,7 @@ function Home() {
     const [latest, setLatest] = useState({ videos: [], loading: true });
     const [mostViewed, setMostViewed] = useState({ videos: [], loading: true });
     const [recentlyWatched, setRecentlyWatched] = useState({ videos: [], loading: true });
+    const [mostSearched, setMostSearched] = useState({ terms: [], loading: true });
 
     useEffect(() => {
         loadAll();
@@ -65,10 +67,48 @@ function Home() {
             .then((res) => setMostViewed({ videos: res.data, loading: false }))
             .catch(() => setMostViewed((s) => ({ ...s, loading: false })));
 
+        getMostSearched()
+            .then((res) => setMostSearched({ terms: res.data, loading: false }))
+            .catch(() => setMostSearched((s) => ({ ...s, loading: false })));
+
     };
 
     return (
         <div>
+
+            {/* Most Searched — topic chips that jump straight into AI search */}
+            {(mostSearched.terms.length > 0 || mostSearched.loading) && (
+                <div className="mb-8">
+                    <h3
+                        className="text-xs uppercase tracking-wide mb-2 flex items-center gap-2"
+                        style={{ color: "var(--color-text-faint)" }}
+                    >
+                        <FaSearch size={10} />
+                        {t("home_most_searched")}
+                    </h3>
+
+                    <div className="flex flex-wrap gap-2">
+                        {mostSearched.loading
+                            ? Array.from({ length: 5 }).map((_, i) => (
+                                <span
+                                    key={i}
+                                    className="h-7 w-24 rounded-full animate-pulse"
+                                    style={{ backgroundColor: "var(--color-surface)" }}
+                                />
+                            ))
+                            : mostSearched.terms.map((term) => (
+                                <button
+                                    key={term.query}
+                                    onClick={() => navigate(`/search?q=${encodeURIComponent(term.query)}`)}
+                                    className="text-xs px-3 py-1.5 rounded-full border transition-colors"
+                                    style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)" }}
+                                >
+                                    {term.query} <span style={{ color: "var(--color-text-faint)" }}>· {term.count}</span>
+                                </button>
+                            ))}
+                    </div>
+                </div>
+            )}
 
             {loggedIn && topPicks.needsOnboarding && (
                 <div

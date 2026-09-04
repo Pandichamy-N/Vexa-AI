@@ -376,17 +376,48 @@ export const getTopPicks = async (req, res) => {
 
         const candidates = await Video.find({ category: { $in: user.interests } })
             .populate("user", "name email subscribers")
-            .limit(150);
+            .limit(300);
 
         const searchPopularity = await getSearchPopularityByCategory();
 
-        const ranked = candidates
-            .map((video) => ({ video, score: computeTrendingScore(video, searchPopularity).score }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 20)
-            .map(({ video }) => video);
+        // Rank within each selected category separately, then interleave
+        // (round-robin) across categories instead of pooling everything
+        // into one global sort. A pure global sort lets whichever
+        // category happens to have the most videos in the DB (usually
+        // Music, since that's what most synced channels produce) crowd
+        // out every other category someone picked — so two people who
+        // picked completely different categories could end up seeing an
+        // almost identical, Music-heavy feed. Interleaving guarantees
+        // every category the person actually selected shows up, as long
+        // as at least one video exists for it.
+        const byCategory = {};
+        for (const category of user.interests) {
+            byCategory[category] = candidates
+                .filter((video) => video.category === category)
+                .map((video) => ({ video, score: computeTrendingScore(video, searchPopularity).score }))
+                .sort((a, b) => b.score - a.score)
+                .map((s) => s.video);
+        }
 
-        res.status(200).json({ videos: ranked, needsOnboarding: false });
+        const ranked = [];
+        let addedInRound = true;
+        while (ranked.length < 20 && addedInRound) {
+            addedInRound = false;
+            for (const category of user.interests) {
+                const bucket = byCategory[category];
+                if (bucket && bucket.length) {
+                    ranked.push(bucket.shift());
+                    addedInRound = true;
+                    if (ranked.length >= 20) break;
+                }
+            }
+        }
+
+        res.status(200).json({
+            videos: ranked,
+            needsOnboarding: false,
+            categoriesWithNoContent: user.interests.filter((c) => !candidates.some((v) => v.category === c)),
+        });
 
     } catch (error) {
         console.error(error);
@@ -604,22 +635,31 @@ export const semanticSearch = async (req, res) => {
     }
 };
 
-// ================= MOST SEARCHED =================
+// ================= MY RECENT SEARCHES =================
+// Private to the logged-in user — was previously aggregated across
+// every user's searches, which meant everyone saw the same "Most
+// Searched" list and, more importantly, could see what strangers had
+// been searching for. Now it's scoped to req.user._id only.
 export const getMostSearched = async (req, res) => {
     try {
+
+        if (!req.user) {
+            return res.status(200).json([]);
+        }
 
         const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
         const top = await SearchLog.aggregate([
-            { $match: { createdAt: { $gte: since } } },
+            { $match: { user: req.user._id, createdAt: { $gte: since } } },
             {
                 $group: {
                     _id: "$normalizedQuery",
                     displayQuery: { $first: "$query" },
                     count: { $sum: 1 },
+                    lastSearchedAt: { $max: "$createdAt" },
                 },
             },
-            { $sort: { count: -1 } },
+            { $sort: { lastSearchedAt: -1 } },
             { $limit: 12 },
         ]);
 
@@ -1100,38 +1140,9 @@ export const getChannelVideos = async (req, res) => {
             user: req.params.userId,
         }).sort({ createdAt: -1 });
 
-        const channelUser = await User.findById(req.params.userId)
-            .select("name profilePic bio channelLinks subscribers");
-
-        if (!channelUser) {
-            return res.status(404).json({
-                success: false,
-                message: "Channel not found",
-            });
-        }
-
-        // req.user is only populated on protected routes — this route is
-        // public, so check optionally via a bearer token if one was sent,
-        // same idea as optionalAuth used for Shorts.
-        let isSubscribed = false;
-        if (req.user) {
-            isSubscribed = channelUser.subscribers.some(
-                (id) => id.toString() === req.user._id.toString()
-            );
-        }
-
         res.status(200).json({
             success: true,
             videos,
-            channel: {
-                _id: channelUser._id,
-                name: channelUser.name,
-                profilePic: channelUser.profilePic,
-                bio: channelUser.bio,
-                channelLinks: channelUser.channelLinks,
-                subscribersCount: channelUser.subscribers.length,
-                isSubscribed,
-            },
         });
 
     } catch (error) {

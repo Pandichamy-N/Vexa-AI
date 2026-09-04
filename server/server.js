@@ -15,8 +15,7 @@ import notificationRoutes from "./routes/notificationRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import musicRoutes from "./routes/musicRoutes.js";
-import contactRoutes from "./routes/contactRoutes.js";
-import { runYoutubeSync } from "./services/syncService.js";
+import { runYoutubeSync, runYoutubeShortsSync } from "./services/syncService.js";
 import {
     securityHeaders,
     sanitizeInput,
@@ -49,6 +48,40 @@ connectDB().then(() => {
         .catch((error) => {
             console.error("⚠️  Startup YouTube auto-sync failed (non-fatal):", error.message);
         });
+
+    // Shorts come from a different YouTube endpoint (search, not RSS)
+    // and used to only ever be pulled in when an admin/user clicked
+    // "Fetch from YouTube" on the Shorts page — so on a long-running
+    // server the Shorts pool never grew, and refreshing just kept
+    // re-sampling the same handful of clips. Running it here too means
+    // the pool actually gets new content without anyone having to
+    // remember to click anything.
+    runYoutubeShortsSync()
+        .then(({ created, skipped, failed }) => {
+            if (created > 0) {
+                console.log(`✅ Auto-sync: added ${created} new Short(s) from YouTube (${skipped} already existed${failed ? `, ${failed} failed` : ""}).`);
+            } else {
+                console.log(`ℹ️  Auto-sync: no new Shorts (${skipped} already up to date).`);
+            }
+        })
+        .catch((error) => {
+            console.error("⚠️  Startup YouTube Shorts auto-sync failed (non-fatal):", error.message);
+        });
+
+    // And then keep both pools growing every few hours for as long as
+    // the process stays up — a server that only ever syncs once at
+    // startup effectively freezes its content the moment it's been
+    // running a while, which is exactly what made "refresh" feel like
+    // it did nothing.
+    const SYNC_INTERVAL_MS = 3 * 60 * 60 * 1000; // 3 hours
+    setInterval(() => {
+        runYoutubeSync().catch((error) => {
+            console.error("⚠️  Scheduled YouTube auto-sync failed (non-fatal):", error.message);
+        });
+        runYoutubeShortsSync().catch((error) => {
+            console.error("⚠️  Scheduled YouTube Shorts auto-sync failed (non-fatal):", error.message);
+        });
+    }, SYNC_INTERVAL_MS);
 
 });
 
@@ -96,7 +129,6 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/music", musicRoutes);
-app.use("/api/contact", contactRoutes);
 
 // Test Route
 app.get("/", (req, res) => {

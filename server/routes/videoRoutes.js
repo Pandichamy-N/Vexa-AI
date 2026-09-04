@@ -67,7 +67,7 @@ router.get("/music-for-you", protect, getMusicForYou);
 
 // ================= AI SEMANTIC SEARCH =================
 router.get("/search", protect, semanticSearch);
-router.get("/most-searched", getMostSearched);
+router.get("/most-searched", protect, getMostSearched);
 router.get("/quick-search", quickSearch);
 
 // ================= AUTO-FETCH FROM YOUTUBE (AI-enriched) =================
@@ -90,7 +90,7 @@ router.get(
 );
 router.get("/myvideos", protect, getMyVideos);
 
-router.get("/channel/:userId", optionalAuth, getChannelVideos);
+router.get("/channel/:userId", getChannelVideos);
 
 // ================= SHORTS FEED =================
 // Must stay above the "/:id" route below, or "/shorts" would be parsed

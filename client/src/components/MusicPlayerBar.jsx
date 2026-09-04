@@ -30,7 +30,7 @@ function MusicPlayerBar() {
         currentTrack, queue, isPlaying, progress, duration,
         autoNext, queueLoading, shuffle, repeat, volume,
         adActive, adSecondsLeft, adDuration, currentAd,
-        togglePlay, skipNext, skipPrevious, seekTo, closePlayer, playTrack,
+        togglePlay, skipNext, skipPrevious, seekTo, closePlayer,
         toggleShuffle, cycleRepeat, setVolume,
     } = useContext(MusicPlayerContext);
 
@@ -73,18 +73,7 @@ function MusicPlayerBar() {
     const progressPct = duration ? (progress / duration) * 100 : 0;
     const adPct = ((adDuration - adSecondsLeft) / adDuration) * 100;
 
-    // Freshly blended tracks get appended to the end of the queue, but
-    // the same track can also still be sitting earlier in it (e.g. it
-    // was also part of the original search results) — finding the
-    // LAST match (not the first) is what keeps this pointed at the
-    // track that's actually playing right now, not a stale earlier copy.
-    let currentIndex = -1;
-    for (let i = queue.length - 1; i >= 0; i--) {
-        if (queue[i]._id === currentTrack._id) {
-            currentIndex = i;
-            break;
-        }
-    }
+    const currentIndex = queue.findIndex((tr) => tr._id === currentTrack._id);
     const upNext = queue.slice(currentIndex + 1);
     const canDownload = currentTrack.downloadAllowed && isPremium;
 
@@ -211,11 +200,7 @@ function MusicPlayerBar() {
                                 </p>
                             ) : (
                                 upNext.map((track) => (
-                                    <div
-                                        key={track._id}
-                                        onClick={() => playTrack(track, queue, isPremium)}
-                                        className="flex items-center gap-2 px-1 py-1.5 rounded-lg cursor-pointer hover:brightness-125"
-                                    >
+                                    <div key={track._id} className="flex items-center gap-2 px-1 py-1.5 rounded-lg">
                                         <img src={track.cover} alt={track.title} className="w-9 h-9 rounded object-cover shrink-0" />
                                         <div className="min-w-0">
                                             <p className="text-xs truncate" style={{ color: "var(--color-text)" }}>{track.title}</p>
@@ -391,20 +376,6 @@ function MusicPlayerBar() {
                             <FaTimes size={13} />
                         </button>
 
-                    </div>
-
-                    {/* Mobile-only progress line — desktop already shows
-                        this inline within the controls row above (md:) */}
-                    <div className="flex md:hidden items-center gap-2 px-4 pb-2.5 -mt-1">
-                        <span className="text-[10px] w-8 text-right shrink-0" style={{ color: "var(--color-text-faint)" }}>
-                            {formatTime(progress)}
-                        </span>
-                        <div onClick={handleSeek} className="flex-1 h-1 rounded-full cursor-pointer" style={{ backgroundColor: "var(--color-surface-2)" }}>
-                            <div className="h-full rounded-full" style={{ width: `${progressPct}%`, backgroundColor: "var(--color-brand)" }} />
-                        </div>
-                        <span className="text-[10px] w-8 shrink-0" style={{ color: "var(--color-text-faint)" }}>
-                            {formatTime(duration)}
-                        </span>
                     </div>
 
                 </>

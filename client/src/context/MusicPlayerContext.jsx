@@ -73,13 +73,26 @@ function MusicPlayerProvider({ children }) {
     // before). Kept in sync every render.
     const currentTrackRef = useRef(null);
     const currentSourceRef = useRef("list"); // "playlist" | "list" — see playTrack
-    // Rolling history of recently-played track ids this session — passed
-    // to the AI blend endpoint so a song can't loop right back as "next".
-    const recentlyPlayedIdsRef = useRef([]);
     const queueRef = useRef([]);
     const autoNextRef = useRef(true);
     const repeatRef = useRef("off");
     const shuffleRef = useRef(false);
+
+    // Every track played this session (by youtubeId), oldest first,
+    // capped so the exclude list sent to the server doesn't grow
+    // unbounded over a long listening session. This is what stops the
+    // AI "up next" continuation from circling back to a track that
+    // already played a few songs ago.
+    const playedYoutubeIdsRef = useRef([]);
+    const MAX_TRACKED_HISTORY = 40;
+    const trackPlayed = (track) => {
+        if (!track?.youtubeId) return;
+        const list = playedYoutubeIdsRef.current;
+        if (!list.includes(track.youtubeId)) {
+            list.push(track.youtubeId);
+            if (list.length > MAX_TRACKED_HISTORY) list.shift();
+        }
+    };
 
     useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
     useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -214,13 +227,7 @@ function MusicPlayerProvider({ children }) {
         setIsPlaying(true);
         playsSinceAdRef.current += 1;
 
-        // Keep the last 15 played ids — used to keep the AI blend from
-        // looping back to something that just played.
-        recentlyPlayedIdsRef.current = [
-            track._id,
-            ...recentlyPlayedIdsRef.current.filter((id) => id !== track._id),
-        ].slice(0, 15);
-
+        trackPlayed(track);
         recordRecentlyPlayed(track._id).catch(() => {});
 
     }, []);
@@ -274,8 +281,9 @@ function MusicPlayerProvider({ children }) {
 
             setQueueLoading(true);
 
-            const res = await getMusicNextTracks(track._id, recentlyPlayedIdsRef.current);
-            const aiTracks = res.data?.tracks || [];
+            const res = await getMusicNextTracks(track._id, playedYoutubeIdsRef.current);
+            const aiTracks = (res.data?.tracks || [])
+                .filter((t) => !playedYoutubeIdsRef.current.includes(t.youtubeId));
 
             if (aiTracks.length > 0) {
                 const extendedQueue = [...currentQueue, ...aiTracks];
@@ -297,7 +305,9 @@ function MusicPlayerProvider({ children }) {
             setQueueLoading(true);
 
             const res = await searchMusic(track.artist || track.title);
-            const more = (res.data?.tracks || []).filter((t) => !recentlyPlayedIdsRef.current.includes(t._id));
+            const more = (res.data?.tracks || [])
+                .filter((t) => t._id !== track._id)
+                .filter((t) => !playedYoutubeIdsRef.current.includes(t.youtubeId));
 
             if (more.length > 0) {
                 const extendedQueue = [...currentQueue, ...more];

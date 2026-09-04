@@ -37,7 +37,10 @@ const userSchema = new mongoose.Schema(
             type: Date,
         },
 
-        // ================= PASSWORD RESET =================
+        // Forgot-password flow. Only the hash is stored (same pattern as
+        // otpCodeHash) — the raw token only ever exists in the emailed
+        // link, never in the DB, so a DB leak alone can't be used to
+        // reset anyone's password.
         resetPasswordTokenHash: {
             type: String,
         },
@@ -55,22 +58,6 @@ const userSchema = new mongoose.Schema(
             type: String,
             default: "",
         },
-
-        // ================= CHANNEL INFO (public-facing) =================
-        bio: {
-            type: String,
-            default: "",
-            maxlength: 500,
-        },
-
-        // YouTube-style "Links" section on a channel page — each one
-        // shown as a clickable pill/button on ChannelPage.
-        channelLinks: [
-            {
-                label: { type: String, trim: true },
-                url: { type: String, trim: true },
-            },
-        ],
 
         role: {
             type: String,

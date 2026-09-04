@@ -6,6 +6,7 @@ import generateToken from "../utils/generateToken.js";
 import { sendOtpEmail, sendPasswordResetEmail } from "../services/emailService.js";
 
 const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const RESET_TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
 
 const generateAndSendOtp = async (user) => {
     const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 digits
@@ -270,28 +271,31 @@ export const loginUser = async (req, res) => {
     }
 };
 
-const RESET_TOKEN_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
-
-// ================= FORGOT PASSWORD (request reset link) =================
+// ================= FORGOT PASSWORD =================
+// Emails a one-time reset link. Always returns the same success
+// response whether or not the email is registered — same reasoning as
+// resendOtp: don't let this endpoint be used to check which emails
+// have accounts.
 export const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
 
-        if (typeof email !== "string" || !email.trim()) {
+        if (typeof email !== "string" || !email) {
             return res.status(400).json({
                 success: false,
                 message: "Email is required",
             });
         }
 
+        const genericResponse = {
+            success: true,
+            message: "If that email has an account, a password reset link has been sent.",
+        };
+
         const user = await User.findOne({ email: email.toLowerCase().trim() });
 
-        // Same response whether or not the account exists — avoids
-        // leaking which emails are registered.
-        const genericMessage = "If that email has a VEXA account, a reset link has been sent.";
-
         if (!user) {
-            return res.status(200).json({ success: true, message: genericMessage });
+            return res.status(200).json(genericResponse);
         }
 
         const rawToken = crypto.randomBytes(32).toString("hex");
@@ -300,15 +304,18 @@ export const forgotPassword = async (req, res) => {
         await user.save();
 
         const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-        const resetLink = `${clientUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
+        const resetUrl = `${clientUrl.replace(/\/$/, "")}/reset-password/${rawToken}`;
 
         try {
-            await sendPasswordResetEmail(user.email, user.name, resetLink);
+            await sendPasswordResetEmail(user.email, user.name, resetUrl);
         } catch (emailError) {
             console.error("Failed to send password reset email:", emailError.message);
+            // Don't leak the send failure to the client — same generic
+            // response either way, so this still can't be used to probe
+            // which emails exist.
         }
 
-        res.status(200).json({ success: true, message: genericMessage });
+        res.status(200).json(genericResponse);
 
     } catch (error) {
         res.status(500).json({
@@ -318,26 +325,22 @@ export const forgotPassword = async (req, res) => {
     }
 };
 
-// ================= RESET PASSWORD (using the emailed token) =================
+// ================= RESET PASSWORD =================
 export const resetPassword = async (req, res) => {
     try {
-        const { email, token, newPassword } = req.body;
+        const { token, password } = req.body;
 
-        if (
-            typeof email !== "string" || !email ||
-            typeof token !== "string" || !token ||
-            typeof newPassword !== "string" || !newPassword
-        ) {
+        if (typeof token !== "string" || !token || typeof password !== "string" || !password) {
             return res.status(400).json({
                 success: false,
-                message: "Missing required fields",
+                message: "Reset token and new password are required",
             });
         }
 
         if (
-            newPassword.length < 8 ||
-            !/[A-Za-z]/.test(newPassword) ||
-            !/[0-9]/.test(newPassword)
+            password.length < 8 ||
+            !/[A-Za-z]/.test(password) ||
+            !/[0-9]/.test(password)
         ) {
             return res.status(400).json({
                 success: false,
@@ -345,39 +348,28 @@ export const resetPassword = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
-
-        if (!user || !user.resetPasswordTokenHash || !user.resetPasswordExpires) {
-            return res.status(400).json({
-                success: false,
-                message: "This reset link is invalid — please request a new one.",
-            });
-        }
-
-        if (user.resetPasswordExpires < new Date()) {
-            return res.status(400).json({
-                success: false,
-                message: "This reset link has expired — please request a new one.",
-            });
-        }
-
         const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
-        if (tokenHash !== user.resetPasswordTokenHash) {
+        const user = await User.findOne({
+            resetPasswordTokenHash: tokenHash,
+            resetPasswordExpires: { $gt: new Date() },
+        });
+
+        if (!user) {
             return res.status(400).json({
                 success: false,
-                message: "This reset link is invalid — please request a new one.",
+                message: "This reset link is invalid or has expired — please request a new one.",
             });
         }
 
-        user.password = await bcrypt.hash(newPassword, 12);
+        user.password = await bcrypt.hash(password, 12);
         user.resetPasswordTokenHash = undefined;
         user.resetPasswordExpires = undefined;
         await user.save();
 
         res.status(200).json({
             success: true,
-            message: "Password reset — you can log in with your new password now.",
+            message: "Password updated — you can now log in with your new password.",
         });
 
     } catch (error) {

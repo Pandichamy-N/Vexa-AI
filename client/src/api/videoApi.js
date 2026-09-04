@@ -121,7 +121,12 @@ export const searchVideosAI = (query, category, pageToken) => {
 };
 
 // Most searched queries (last 7 days)
-export const getMostSearched = () => axios.get(`${API_URL}/most-searched`);
+export const getMostSearched = () => {
+    const token = localStorage.getItem("token");
+    return axios.get(`${API_URL}/most-searched`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+};
 
 // Fast live-search suggestions (no AI, used for the Navbar dropdown)
 export const quickSearchVideos = (query) =>
@@ -258,10 +263,7 @@ export const deleteVideo = (id) => {
 
 
 export const getChannelVideos = (userId) => {
-    const token = localStorage.getItem("token");
-    return axios.get(`${API_URL}/channel/${userId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    return axios.get(`${API_URL}/channel/${userId}`);
 };
 
 export const getDashboard = async () => {

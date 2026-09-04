@@ -79,7 +79,7 @@ function Login() {
                     className="w-full p-3 rounded-lg mb-4 border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
                 />
 
-                <div className="relative mb-2">
+                <div className="relative mb-4">
                     <input
                         type={showPassword ? "text" : "password"}
                         placeholder="Password"
@@ -89,17 +89,18 @@ function Login() {
                     />
                     <button
                         type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2"
-                        style={{ color: "var(--color-text-faint)" }}
+                        onClick={() => setShowPassword((s) => !s)}
+                        tabIndex={-1}
                         aria-label={showPassword ? "Hide password" : "Show password"}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        style={{ color: "var(--color-text-muted)" }}
                     >
                         {showPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
                     </button>
                 </div>
 
-                <div className="text-right mb-4">
-                    <Link to="/forgot-password" className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+                <div className="text-right mb-4 -mt-2">
+                    <Link to="/forgot-password" className="text-xs text-[var(--color-brand)] hover:text-[var(--color-brand-dark)]">
                         Forgot password?
                     </Link>
                 </div>

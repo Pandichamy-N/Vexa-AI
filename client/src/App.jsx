@@ -3,8 +3,6 @@ import { Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Home from "./pages/Home";
 import Trending from "./pages/Trending";
-import Help from "./pages/Help";
-import Contact from "./pages/Contact";
 import Shorts from "./pages/Shorts";
 import Categories from "./pages/Categories";
 import Favorites from "./pages/Favorites";
@@ -12,9 +10,9 @@ import History from "./pages/History";
 import Profile from "./pages/Profile";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
 import VideoPage from "./pages/VideoPage";
 import UploadVideo from "./pages/UploadVideo";
 import MyUploads from "./pages/MyUploads";
@@ -41,9 +39,9 @@ function App() {
       {/* Public Route */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* Onboarding — full-screen, no Navbar/Sidebar, auth required */}
       <Route
@@ -77,16 +75,6 @@ function App() {
         <Route
           path="trending"
           element={<Trending />}
-        />
-
-        {/* Help & Contact */}
-        <Route
-          path="help"
-          element={<Help />}
-        />
-        <Route
-          path="contact"
-          element={<Contact />}
         />
 
         {/* Shorts */}

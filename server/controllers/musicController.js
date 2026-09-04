@@ -125,40 +125,40 @@ export const getMusicNextTracks = async (req, res) => {
             return res.status(404).json({ success: false, message: "Track not found" });
         }
 
-        // Recently-played track ids from this listening session (sent by
-        // the player) — without this, "similar songs" for track B could
-        // easily resurface track A right after it, causing an A→B→A→B
-        // loop instead of an actually-continuing mix.
-        const recentIds = typeof req.query.excludeIds === "string"
-            ? req.query.excludeIds.split(",").filter(Boolean)
-            : [];
-
-        const recentTracks = recentIds.length
-            ? await Track.find({ _id: { $in: recentIds } }).select("youtubeId")
-            : [];
-
-        const excludedYoutubeIds = new Set([
-            currentTrack.youtubeId,
-            ...recentTracks.map((t) => t.youtubeId),
-        ]);
+        // Every track already played this listening session (sent by the
+        // client) — without this, a fresh YouTube search for the same
+        // artist/style just turns up the same handful of tracks again,
+        // and the "AI up next" line collapses into an A→B→A→B loop
+        // instead of continuing to build.
+        const excludeYoutubeIds = new Set(
+            (req.query.exclude || "")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+        );
+        excludeYoutubeIds.add(currentTrack.youtubeId);
 
         const searchTerm = currentTrack.artist || currentTrack.title;
 
-        // No videoCategoryId restriction here (unlike searchMusic above) —
-        // that filter is what keeps typed searches on-topic, but for
-        // blending it narrows the pool so much for many artists that
-        // only 1-2 candidates survive, which is what was causing
-        // playback to loop between the same couple of songs. A wider,
-        // unrestricted pool plus the excludedYoutubeIds filter below is
-        // what actually keeps the mix varied.
-        const youtubeResult = await searchYoutubeVideos(searchTerm, 40).catch((error) => {
+        const youtubeResult = await searchYoutubeVideos(searchTerm, 20, null, "10").catch((error) => {
             console.error("Music next-up candidate search failed:", error.message);
             return { videos: [] };
         });
 
-        const normalized = youtubeResult.videos
+        let normalized = youtubeResult.videos
             .map(normalizeYoutubeTrack)
-            .filter((t) => !excludedYoutubeIds.has(t.youtubeId));
+            .filter((t) => !excludeYoutubeIds.has(t.youtubeId));
+
+        // The same artist's catalog on YouTube isn't infinite — once a
+        // session has played through most of it, keep the "line" going
+        // by widening to genre/style instead of just stopping.
+        if (normalized.length === 0 && currentTrack.genres?.length) {
+            const broaderTerm = `${currentTrack.genres[0]} songs`;
+            const broaderResult = await searchYoutubeVideos(broaderTerm, 20, null, "10").catch(() => ({ videos: [] }));
+            normalized = broaderResult.videos
+                .map(normalizeYoutubeTrack)
+                .filter((t) => !excludeYoutubeIds.has(t.youtubeId));
+        }
 
         if (normalized.length === 0) {
             return res.status(200).json({ success: true, tracks: [], source: "none" });

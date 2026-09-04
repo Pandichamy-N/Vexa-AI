@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
-import { FaUserCircle, FaPen, FaLink, FaPlus, FaTrash, FaCheck } from "react-icons/fa";
+import { FaUserCircle, FaPen } from "react-icons/fa";
 import { API_ROOT } from "../config/api";
-import { getProfile, uploadProfilePic, updateChannelInfo } from "../services/userService";
+import { getProfile, uploadProfilePic } from "../services/userService";
 import { Link, useNavigate } from "react-router-dom";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { LanguageContext } from "../context/LanguageContext";
@@ -12,11 +12,6 @@ function Profile() {
     const [user, setUser] = useState(null);
     const [error, setError] = useState("");
     const navigate = useNavigate();
-
-    const [editingChannel, setEditingChannel] = useState(false);
-    const [bioDraft, setBioDraft] = useState("");
-    const [linksDraft, setLinksDraft] = useState([]);
-    const [savingChannel, setSavingChannel] = useState(false);
 
     useEffect(() => {
         fetchProfile();
@@ -30,8 +25,6 @@ function Profile() {
             const data = await getProfile();
 
             setUser(data.user);
-            setBioDraft(data.user.bio || "");
-            setLinksDraft(data.user.channelLinks?.length ? data.user.channelLinks : [{ label: "", url: "" }]);
 
         } catch (error) {
 
@@ -115,38 +108,6 @@ function Profile() {
 
     };
 
-    const handleLinkChange = (index, field, value) => {
-        setLinksDraft((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
-    };
-
-    const handleAddLinkRow = () => {
-        if (linksDraft.length >= 5) return;
-        setLinksDraft((prev) => [...prev, { label: "", url: "" }]);
-    };
-
-    const handleRemoveLinkRow = (index) => {
-        setLinksDraft((prev) => prev.filter((_, i) => i !== index));
-    };
-
-    const handleSaveChannelInfo = async () => {
-        try {
-            setSavingChannel(true);
-
-            const cleanLinks = linksDraft.filter((l) => l.url.trim());
-
-            const res = await updateChannelInfo({ bio: bioDraft, channelLinks: cleanLinks });
-
-            setUser((u) => ({ ...u, bio: res.user.bio, channelLinks: res.user.channelLinks }));
-            setLinksDraft(res.user.channelLinks?.length ? res.user.channelLinks : [{ label: "", url: "" }]);
-            setEditingChannel(false);
-
-        } catch (err) {
-            alert(err.response?.data?.message || "Couldn't save channel info");
-        } finally {
-            setSavingChannel(false);
-        }
-    };
-
     const stats = [
         { label: t("nav_watchlater"), value: user.watchLaterCount, color: "var(--color-brand)" },
         { label: t("nav_history"), value: user.historyCount, color: "#38bdf8" },
@@ -203,142 +164,6 @@ function Profile() {
                 <p className="text-center mt-2" style={{ color: "var(--color-text-muted)" }}>
                     {user.email}
                 </p>
-
-                <div className="flex justify-center mt-3">
-                    <Link
-                        to={`/channel/${user._id}`}
-                        className="text-sm font-medium"
-                        style={{ color: "var(--color-brand)" }}
-                    >
-                        View my channel →
-                    </Link>
-                </div>
-
-                {/* Channel Info — bio + links, shown on your public ChannelPage */}
-                <div className="mt-6">
-                    <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-semibold" style={{ color: "var(--color-text-muted)" }}>
-                            Channel Info
-                        </h3>
-                        {!editingChannel && (
-                            <button
-                                onClick={() => setEditingChannel(true)}
-                                className="text-xs flex items-center gap-1"
-                                style={{ color: "#5eead4" }}
-                            >
-                                <FaPen size={10} />
-                                Edit
-                            </button>
-                        )}
-                    </div>
-
-                    {editingChannel ? (
-                        <div className="space-y-3">
-
-                            <textarea
-                                value={bioDraft}
-                                onChange={(e) => setBioDraft(e.target.value.slice(0, 500))}
-                                placeholder="Tell viewers about your channel..."
-                                rows={3}
-                                className="w-full p-3 rounded-lg border outline-none text-sm resize-none"
-                                style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
-                            />
-                            <p className="text-xs -mt-2" style={{ color: "var(--color-text-faint)" }}>
-                                {bioDraft.length}/500
-                            </p>
-
-                            <div className="space-y-2">
-                                {linksDraft.map((link, i) => (
-                                    <div key={i} className="flex gap-2 items-center">
-                                        <input
-                                            type="text"
-                                            placeholder="Label (e.g. Instagram)"
-                                            value={link.label}
-                                            onChange={(e) => handleLinkChange(i, "label", e.target.value)}
-                                            className="w-28 p-2 rounded-lg border outline-none text-xs"
-                                            style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
-                                        />
-                                        <input
-                                            type="url"
-                                            placeholder="https://..."
-                                            value={link.url}
-                                            onChange={(e) => handleLinkChange(i, "url", e.target.value)}
-                                            className="flex-1 p-2 rounded-lg border outline-none text-xs"
-                                            style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
-                                        />
-                                        <button onClick={() => handleRemoveLinkRow(i)} style={{ color: "var(--color-danger)" }}>
-                                            <FaTrash size={12} />
-                                        </button>
-                                    </div>
-                                ))}
-
-                                {linksDraft.length < 5 && (
-                                    <button
-                                        onClick={handleAddLinkRow}
-                                        className="text-xs flex items-center gap-1"
-                                        style={{ color: "var(--color-brand)" }}
-                                    >
-                                        <FaPlus size={10} />
-                                        Add link
-                                    </button>
-                                )}
-                            </div>
-
-                            <div className="flex gap-2 pt-1">
-                                <button
-                                    onClick={handleSaveChannelInfo}
-                                    disabled={savingChannel}
-                                    className="brand-btn px-4 py-2 rounded-lg text-sm flex items-center gap-1.5"
-                                >
-                                    <FaCheck size={11} />
-                                    {savingChannel ? "Saving..." : "Save"}
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setEditingChannel(false);
-                                        setBioDraft(user.bio || "");
-                                        setLinksDraft(user.channelLinks?.length ? user.channelLinks : [{ label: "", url: "" }]);
-                                    }}
-                                    className="px-4 py-2 rounded-lg text-sm"
-                                    style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-text)" }}
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-
-                        </div>
-                    ) : (
-                        <>
-                            {user.bio ? (
-                                <p className="text-sm whitespace-pre-line" style={{ color: "var(--color-text-muted)" }}>
-                                    {user.bio}
-                                </p>
-                            ) : (
-                                <p className="text-sm" style={{ color: "var(--color-text-faint)" }}>
-                                    No bio yet — add one so visitors know what your channel is about.
-                                </p>
-                            )}
-
-                            {user.channelLinks?.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {user.channelLinks.map((link, i) => (
-                                        <a
-                                            key={i}
-                                            href={link.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
-                                            style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-text)" }}
-                                        >
-                                            <FaLink size={10} />
-                                            {link.label}
-                                        </a>
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
 
                 {/* Interests */}
                 <div className="mt-6">

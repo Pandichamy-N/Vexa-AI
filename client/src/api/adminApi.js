@@ -10,10 +10,14 @@ const authHeaders = () => ({
 export const getAdminOverview = () => axios.get(`${API_URL}/overview`, authHeaders());
 
 export const getAllUsersAdmin = () => axios.get(`${API_URL}/users`, authHeaders());
+export const getUserDetailAdmin = (id) => axios.get(`${API_URL}/users/${id}`, authHeaders());
 export const setUserRoleAdmin = (id, role) =>
     axios.put(`${API_URL}/users/${id}/role`, { role }, authHeaders());
 export const deleteUserAdmin = (id) =>
     axios.delete(`${API_URL}/users/${id}`, authHeaders());
+
+export const getAuditLogAdmin = (page = 1) =>
+    axios.get(`${API_URL}/audit-log`, { ...authHeaders(), params: { page } });
 
 export const getAllVideosAdmin = () => axios.get(`${API_URL}/videos`, authHeaders());
 export const deleteVideoAdmin = (id) =>
@@ -30,7 +34,3 @@ export const removeSyncChannelAdmin = (id) =>
     axios.delete(`${API_URL}/sync-channels/${id}`, authHeaders());
 export const triggerSyncAdmin = () =>
     axios.post(`${API_URL}/sync-now`, {}, authHeaders());
-
-export const getContactMessagesAdmin = () => axios.get(`${API_URL}/contact-messages`, authHeaders());
-export const resolveContactMessageAdmin = (id) =>
-    axios.put(`${API_URL}/contact-messages/${id}/resolve`, {}, authHeaders());

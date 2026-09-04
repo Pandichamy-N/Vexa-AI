@@ -16,25 +16,6 @@ export const getProfile = async () => {
     return response.data;
 };
 
-// ================= CHANNEL INFO (name, bio, links) =================
-export const updateChannelInfo = async (data) => {
-    const token = localStorage.getItem("token");
-
-    const response = await axios.put(`${USER_API}/channel-info`, data, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
-
-    return response.data;
-};
-
-// ================= CHANNEL FOLLOWERS (public) =================
-export const getChannelFollowers = async (userId) => {
-    const response = await axios.get(`${USER_API}/${userId}/followers`);
-    return response.data;
-};
-
 // ================= SUBSCRIBE =================
 export const subscribeToChannel = async (channelId) => {
     const token = localStorage.getItem("token");

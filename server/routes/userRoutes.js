@@ -4,8 +4,6 @@ import upload from "../middleware/uploadMiddleware.js";
 
 import {
     getProfile,
-    updateChannelInfo,
-    getChannelFollowers,
     getWatchLater,
     addToWatchLater,
     removeFromWatchLater,
@@ -28,8 +26,6 @@ const router = express.Router();
 
 // Profile
 router.get("/profile", protect, getProfile);
-router.put("/channel-info", protect, updateChannelInfo);
-router.get("/:userId/followers", getChannelFollowers);
 
 // Onboarding interests (Spotify/Pinterest-style category pick)
 router.put("/interests", protect, updateInterests);
