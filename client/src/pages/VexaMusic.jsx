@@ -1,11 +1,10 @@
 import { useContext, useEffect, useState } from "react";
 import {
-    FaSearch, FaCrown, FaHeart, FaList, FaCompass, FaHistory, FaPlus,
+    FaSearch, FaCrown, FaHeart, FaList, FaCompass, FaHistory,
 } from "react-icons/fa";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import MusicCard from "../components/MusicCard";
 import VexaMusicLogo from "../components/VexaMusicLogo";
-import AddMusicModal from "../components/AddMusicModal";
 import { searchMusic, getFavoriteTracks, getRecentlyPlayed } from "../api/musicApi";
 import { getProfile } from "../services/userService";
 import { getMyPlaylists, createPlaylist, getPlaylistById } from "../services/playlistService";
@@ -26,7 +25,6 @@ function VexaMusic() {
 
     const [tab, setTab] = useState("browse");
     const [isPremium, setIsPremium] = useState(false);
-    const [showAddMusic, setShowAddMusic] = useState(false);
 
     const [query, setQuery] = useState("");
     const [searchResults, setSearchResults] = useState(null);
@@ -122,13 +120,30 @@ function VexaMusic() {
         }
     };
 
-    const handleSearch = async (e) => {
+    // Lets other parts of the app (e.g. the AI chatbot) deep-link into a
+    // music search with /music?q=<song>.
+    const [searchParams] = useSearchParams();
+    const urlQuery = searchParams.get("q") || "";
+
+    useEffect(() => {
+        if (!urlQuery.trim()) return;
+        setTab("browse");
+        setQuery(urlQuery);
+        runMusicSearch(urlQuery);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [urlQuery]);
+
+    const handleSearch = (e) => {
         e.preventDefault();
-        if (!query.trim()) return;
+        runMusicSearch(query);
+    };
+
+    const runMusicSearch = async (q) => {
+        if (!q.trim()) return;
 
         try {
             setSearching(true);
-            const res = await searchMusic(query.trim());
+            const res = await searchMusic(q.trim());
             setSearchResults(res.data.tracks || []);
             setHasMore(res.data.hasMore);
             setNextPageToken(res.data.nextPageToken || null);
@@ -162,7 +177,6 @@ function VexaMusic() {
     };
 
     return (
-        <>
         <div>
 
             <div className="flex items-center justify-between flex-wrap gap-4 mb-5">
@@ -174,22 +188,12 @@ function VexaMusic() {
                     </h1>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setShowAddMusic(true)}
-                        className="flex items-center gap-2 brand-btn px-4 py-2 rounded-full text-sm"
-                    >
-                        <FaPlus size={12} />
-                        Add Music
-                    </button>
-
-                    {!isPremium && (
-                        <Link to="/premium" className="flex items-center gap-2 ai-btn px-4 py-2 rounded-full text-sm">
-                            <FaCrown size={12} />
-                            {t("ad_go_premium")}
-                        </Link>
-                    )}
-                </div>
+                {!isPremium && (
+                    <Link to="/premium" className="flex items-center gap-2 ai-btn px-4 py-2 rounded-full text-sm">
+                        <FaCrown size={12} />
+                        {t("ad_go_premium")}
+                    </Link>
+                )}
 
             </div>
 
@@ -408,23 +412,6 @@ function VexaMusic() {
             )}
 
         </div>
-
-            {showAddMusic && (
-                <AddMusicModal
-                    onClose={() => setShowAddMusic(false)}
-                    onAdded={() => {
-                        setShowAddMusic(false);
-                        showToast("Music added", "success");
-                        // Recently Played / Liked lists are per-user activity,
-                        // not affected by an add — but if someone's sitting on
-                        // the browse tab with old search results open, back
-                        // them out so the fresh track is discoverable again.
-                        setSearchResults(null);
-                        setQuery("");
-                    }}
-                />
-            )}
-        </>
     );
 }
 

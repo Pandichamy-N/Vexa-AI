@@ -1,13 +1,37 @@
 import { useContext, useEffect, useRef, useState } from "react";
-import { FaRobot, FaTimes, FaPaperPlane } from "react-icons/fa";
+import { useNavigate } from "react-router-dom";
+import { FaRobot, FaTimes, FaPaperPlane, FaMicrophone } from "react-icons/fa";
 import { sendChatMessage } from "../api/aiApi";
+import { searchMusic } from "../api/musicApi";
+import { searchVideosAI } from "../api/videoApi";
+import { getProfile } from "../services/userService";
 import VexaLogo from "./VexaLogo";
 import { MusicPlayerContext } from "../context/MusicPlayerContext";
+import { InAppBrowserContext } from "../context/InAppBrowserContext";
+import { LanguageContext } from "../context/LanguageContext";
+import { detectChatIntent } from "../utils/chatIntent";
+
+const SPEECH_LOCALES = {
+    en: "en-US",
+    ta: "ta-IN",
+    hi: "hi-IN",
+    ml: "ml-IN",
+    te: "te-IN",
+};
 
 function ChatbotWidget() {
 
-    const { currentTrack } = useContext(MusicPlayerContext);
+    const { currentTrack, playTrack } = useContext(MusicPlayerContext);
+    const { open: openInAppBrowser } = useContext(InAppBrowserContext);
+    const { language } = useContext(LanguageContext);
+    const navigate = useNavigate();
+
     const [open, setOpen] = useState(false);
+    const [isPremium, setIsPremium] = useState(false);
+    const [listening, setListening] = useState(false);
+    const recognitionRef = useRef(null);
+    const voiceTextRef = useRef("");
+    const handleSendRef = useRef(null);
     const [message, setMessage] = useState("");
     const [messages, setMessages] = useState([
         {
@@ -26,25 +50,110 @@ function ChatbotWidget() {
         }
     }, [messages, open]);
 
-    const handleSend = async () => {
+    useEffect(() => {
+        if (!loggedIn) return;
+        getProfile().then((data) => setIsPremium(Boolean(data.user?.isPremium))).catch(() => {});
+    }, [loggedIn]);
 
-        if (!message.trim()) return;
+    const addAssistantMessage = (text) =>
+        setMessages((prev) => [...prev, { role: "assistant", text }]);
+
+    // Close the panel shortly after jumping to a page, so the person
+    // actually sees where they landed instead of the chat covering it.
+    const closeSoon = () => setTimeout(() => setOpen(false), 900);
+
+    // ================= AUTO-OPEN: songs / videos / links =================
+    // Runs for typed AND spoken messages. Returns true if it handled the
+    // message (so the normal AI reply is skipped).
+    const runIntent = async (intent) => {
+
+        if (intent.type === "link") {
+            try {
+                const parsed = new URL(intent.url);
+                if (parsed.origin === window.location.origin) {
+                    addAssistantMessage("Opening that page for you…");
+                    navigate(parsed.pathname + parsed.search);
+                } else {
+                    addAssistantMessage("Opening that link inside VEXA…");
+                    openInAppBrowser(intent.url);
+                }
+                closeSoon();
+            } catch {
+                addAssistantMessage("That link doesn't look valid — can you check it?");
+            }
+            return true;
+        }
+
+        if (intent.type === "music") {
+            addAssistantMessage(`Searching songs for "${intent.query}"…`);
+            try {
+                const res = await searchMusic(intent.query);
+                const tracks = res.data.tracks || [];
+                if (!tracks.length) {
+                    addAssistantMessage(`I couldn't find any songs for "${intent.query}". Try another name?`);
+                    return true;
+                }
+                playTrack(tracks[0], tracks, isPremium);
+                navigate(`/music?q=${encodeURIComponent(intent.query)}`);
+                addAssistantMessage(`Playing "${tracks[0].title}" — the full results are on the Music page.`);
+                closeSoon();
+            } catch (error) {
+                console.log(error);
+                addAssistantMessage("Couldn't search songs right now. Try again in a moment.");
+            }
+            return true;
+        }
+
+        if (intent.type === "video") {
+            addAssistantMessage(`Searching videos for "${intent.query}"…`);
+            try {
+                const res = await searchVideosAI(intent.query);
+                const top = res.data.results?.[0];
+                if (top?._id) {
+                    navigate(`/video/${top._id}`);
+                    addAssistantMessage(`Opening "${top.title}".`);
+                } else {
+                    navigate(`/search?q=${encodeURIComponent(intent.query)}`);
+                    addAssistantMessage(`No exact match — showing search results for "${intent.query}".`);
+                }
+                closeSoon();
+            } catch (error) {
+                console.log(error);
+                navigate(`/search?q=${encodeURIComponent(intent.query)}`);
+                addAssistantMessage(`Showing search results for "${intent.query}".`);
+                closeSoon();
+            }
+            return true;
+        }
+
+        return false;
+    };
+
+    const handleSend = async (overrideText) => {
+
+        const rawText = typeof overrideText === "string" ? overrideText : message;
+
+        if (!rawText.trim()) return;
 
         if (!loggedIn) {
             setMessages((prev) => [
                 ...prev,
-                { role: "user", text: message },
+                { role: "user", text: rawText },
                 { role: "assistant", text: "Log in first and I can help you find videos and explain features." },
             ]);
             setMessage("");
             return;
         }
 
-        const userText = message;
+        const userText = rawText;
         setMessage("");
 
         const nextMessages = [...messages, { role: "user", text: userText }];
         setMessages(nextMessages);
+
+        // Songs / videos / links: go straight there, no AI round-trip.
+        const handled = await runIntent(detectChatIntent(userText));
+        if (handled) return;
 
         try {
 
@@ -84,6 +193,61 @@ function ChatbotWidget() {
 
         }
 
+    };
+
+    // Always point at the latest handleSend so the voice callbacks
+    // (created once) never use stale messages/state.
+    handleSendRef.current = handleSend;
+
+    // ================= VOICE INPUT =================
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) return;
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+
+        recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map((result) => result[0].transcript)
+                .join("");
+            voiceTextRef.current = transcript;
+            setMessage(transcript);
+        };
+
+        recognition.onerror = () => setListening(false);
+
+        // When the mic stops, send whatever was heard — speak, pause, done.
+        recognition.onend = () => {
+            setListening(false);
+            const heard = voiceTextRef.current.trim();
+            voiceTextRef.current = "";
+            if (heard) handleSendRef.current(heard);
+        };
+
+        recognitionRef.current = recognition;
+        return () => recognition.abort();
+    }, []);
+
+    const handleVoice = () => {
+        if (!recognitionRef.current) {
+            addAssistantMessage("Voice isn't supported in this browser — try Chrome or Edge.");
+            return;
+        }
+        if (listening) {
+            recognitionRef.current.stop();
+            return;
+        }
+        recognitionRef.current.lang = SPEECH_LOCALES[language] || "en-US";
+        voiceTextRef.current = "";
+        setMessage("");
+        setListening(true);
+        try {
+            recognitionRef.current.start();
+        } catch (error) {
+            console.log(error);
+        }
     };
 
     return (
@@ -214,7 +378,7 @@ function ChatbotWidget() {
 
                         <input
                             type="text"
-                            placeholder={loggedIn ? "Ask me anything..." : "Log in to chat with AI"}
+                            placeholder={listening ? "Listening…" : loggedIn ? "Ask, or say “play Anirudh songs”…" : "Log in to chat with AI"}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyDown={(e) => {
@@ -228,7 +392,20 @@ function ChatbotWidget() {
                         />
 
                         <button
-                            onClick={handleSend}
+                            onClick={handleVoice}
+                            aria-label={listening ? "Stop listening" : "Speak to the assistant"}
+                            title="Voice"
+                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${listening ? "animate-pulse" : ""}`}
+                            style={{
+                                backgroundColor: listening ? "#ef4444" : "var(--color-surface-2)",
+                                color: listening ? "#fff" : "var(--color-text-muted)",
+                            }}
+                        >
+                            <FaMicrophone size={13} />
+                        </button>
+
+                        <button
+                            onClick={() => handleSend()}
                             disabled={sending}
                             className="ai-btn w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                         >
