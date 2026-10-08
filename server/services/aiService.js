@@ -3,47 +3,45 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
 
 // ================= CORE HELPER =================
-// Shared call to the OpenRouter chat completions endpoint used by every
-// AI feature in this file. Keeping this in one place means the model
-// name, auth, and error handling only need to live in one spot.
 const callAI = async (prompt, { temperature = 0.5, max_tokens = 600 } = {}) => {
     try {
         const response = await axios.post(
-            OPENROUTER_URL,
+            GEMINI_URL,
             {
-                model: MODEL,
-                messages: [
-                    {
-                        role: "user",
-                        content: prompt,
-                    },
-                ],
-                max_tokens,
-                temperature,
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                    temperature,
+                    maxOutputTokens: max_tokens,
+                    // Flash "thinking" tokens use up maxOutputTokens and can
+                    // cut the JSON short, so thinking is switched off.
+                    thinkingConfig: { thinkingBudget: 0 },
+                },
             },
             {
                 headers: {
-                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    "x-goog-api-key": process.env.GEMINI_API_KEY,
                     "Content-Type": "application/json",
                 },
             }
         );
 
-        return response.data.choices[0].message.content;
+        const text = response.data?.candidates?.[0]?.content?.parts
+            ?.map((p) => p.text || "")
+            .join("");
+
+        if (!text) {
+            throw new Error("Gemini returned an empty response");
+        }
+
+        return text;
 
     } catch (error) {
-
-        console.error(
-            "AI Service Error:",
-            error.response?.data || error.message
-        );
-
+        console.error("AI Service Error:", error.response?.data || error.message);
         throw error;
-
     }
 };
 
