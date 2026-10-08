@@ -15,10 +15,8 @@ const callAI = async (prompt, { temperature = 0.5, max_tokens = 600 } = {}) => {
                 contents: [{ role: "user", parts: [{ text: prompt }] }],
                 generationConfig: {
                     temperature,
-                    maxOutputTokens: max_tokens+800,
-                    // Flash "thinking" tokens use up maxOutputTokens and can
-                    // cut the JSON short, so thinking is switched off.
-                    thinkingConfig: { thinkingBudget: "low"},
+                    maxOutputTokens: max_tokens+ 1500,
+                    thinkingConfig: { thinkingLevel: "low" },
                 },
             },
             {
