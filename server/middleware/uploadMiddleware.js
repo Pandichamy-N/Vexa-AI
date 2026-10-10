@@ -1,5 +1,11 @@
 import multer from "multer";
 import path from "path";
+import fs from "fs";
+
+// "uploads/" is git-ignored, so it doesn't exist on a fresh deploy (Render,
+// etc.) — and multer does NOT create a folder given as a function result,
+// so every upload would fail with ENOENT. Create it up front.
+fs.mkdirSync("uploads", { recursive: true });
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {

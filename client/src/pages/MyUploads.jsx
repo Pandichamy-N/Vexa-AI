@@ -12,6 +12,8 @@ function MyUploads() {
     const { t } = useContext(LanguageContext);
 
     const [videos, setVideos] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState("");
     const [editingVideo, setEditingVideo] = useState(null);
 
     const [formData, setFormData] = useState({
@@ -31,13 +33,28 @@ function MyUploads() {
     const fetchVideos = async () => {
         try {
 
+            setLoading(true);
+            setLoadError("");
+
             const res = await getMyVideos();
 
-            setVideos(res.data.videos);
+            setVideos(res.data.videos || []);
 
         } catch (err) {
 
             console.log(err);
+
+            // Used to fail silently, which just looked like an empty
+            // page — now says what actually went wrong.
+            setLoadError(
+                err.response?.status === 401
+                    ? "Your session has expired — please log out and log in again."
+                    : err.response?.data?.message || "Couldn't load your uploads. Please try again."
+            );
+
+        } finally {
+
+            setLoading(false);
 
         }
     };
@@ -140,6 +157,32 @@ function MyUploads() {
         <h1 className="text-3xl font-bold mb-6">
             {t("nav_myuploads")}
         </h1>
+
+        {loading && (
+            <p style={{ color: "var(--color-text-muted)" }}>Loading your uploads...</p>
+        )}
+
+        {!loading && loadError && (
+            <div className="mb-6">
+                <p style={{ color: "var(--color-danger)" }}>{loadError}</p>
+                <button
+                    onClick={fetchVideos}
+                    className="mt-3 px-4 py-2 rounded-lg text-sm"
+                    style={{ backgroundColor: "var(--color-surface-2)", color: "var(--color-text)" }}
+                >
+                    Try again
+                </button>
+            </div>
+        )}
+
+        {!loading && !loadError && videos.length === 0 && (
+            <div className="mb-6" style={{ color: "var(--color-text-muted)" }}>
+                <p>You haven't uploaded any videos yet.</p>
+                <Link to="/upload" className="inline-block mt-2" style={{ color: "var(--color-brand)" }}>
+                    Upload your first video →
+                </Link>
+            </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 

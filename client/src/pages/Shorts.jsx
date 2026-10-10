@@ -10,17 +10,38 @@ import {
     FaTimes,
     FaPlay,
     FaSyncAlt,
-    FaAngleDoubleDown,
 } from "react-icons/fa";
 import { getShorts, likeVideo, addComment, increaseView, autoFetchShorts } from "../api/videoApi";
 import { getProfile } from "../services/userService";
 import { LanguageContext } from "../context/LanguageContext";
 
+// Loads the official YouTube IFrame API once and shares it — needed to
+// know when a YouTube-sourced short has finished playing.
+let ytApiPromise = null;
+const loadYouTubeApi = () => {
+    if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+    if (!ytApiPromise) {
+        ytApiPromise = new Promise((resolve) => {
+            const previous = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = () => {
+                previous?.();
+                resolve(window.YT);
+            };
+            if (!document.getElementById("youtube-iframe-api")) {
+                const tag = document.createElement("script");
+                tag.id = "youtube-iframe-api";
+                tag.src = "https://www.youtube.com/iframe_api";
+                document.body.appendChild(tag);
+            }
+        });
+    }
+    return ytApiPromise;
+};
+
 // ================= ONE SHORT =================
-function ShortCard({ short, isActive, muted, onToggleMute, onSeenView, myName, autoScroll, isLast, onEnded }) {
+function ShortCard({ short, isActive, muted, onToggleMute, onSeenView, myName, autoScroll, onEndedAutoAdvance }) {
 
     const videoRef = useRef(null);
-    const iframeRef = useRef(null);
     const [liked, setLiked] = useState(false);
     const [likes, setLikes] = useState(short.likes || 0);
     const [paused, setPaused] = useState(false);
@@ -29,6 +50,38 @@ function ShortCard({ short, isActive, muted, onToggleMute, onSeenView, myName, a
     const [commentText, setCommentText] = useState("");
     const [shareCopied, setShareCopied] = useState(false);
     const viewCounted = useRef(false);
+
+    // Always call the latest advance callback, even though the player
+    // listener below is only registered once per short.
+    const advanceRef = useRef(onEndedAutoAdvance);
+    useEffect(() => {
+        advanceRef.current = onEndedAutoAdvance;
+    });
+
+    // YouTube-sourced shorts: tell when playback ends so the feed can
+    // move on by itself (only while auto-scroll is on — otherwise the
+    // short keeps looping like before).
+    useEffect(() => {
+        if (!short.videoId || !isActive || !autoScroll) return;
+
+        let cancelled = false;
+
+        loadYouTubeApi().then((YT) => {
+            if (cancelled) return;
+            // eslint-disable-next-line no-new
+            new YT.Player(`short-iframe-${short._id}`, {
+                events: {
+                    onStateChange: (e) => {
+                        if (e.data === YT.PlayerState.ENDED) advanceRef.current?.();
+                    },
+                },
+            });
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [short._id, short.videoId, isActive, autoScroll, muted]);
 
     useEffect(() => {
         if (short.videoId) return; // YouTube iframe handles its own autoplay via the URL params
@@ -57,51 +110,6 @@ function ShortCard({ short, isActive, muted, onToggleMute, onSeenView, myName, a
         viewCounted.current = true;
         onSeenView(short._id);
     }, [isActive]);
-
-    // ================= AUTO-SCROLL: video finished =================
-    // Keep the latest values in a ref so the long-lived listeners below
-    // never act on stale props.
-    const endedRef = useRef(() => {});
-    endedRef.current = () => {
-        if (!autoScroll || !isActive) return;
-        if (isLast) {
-            // Nothing after this one yet — replay instead of getting stuck.
-            const el = videoRef.current;
-            if (el) { el.currentTime = 0; el.play().catch(() => {}); }
-            return;
-        }
-        onEnded();
-    };
-
-    // YouTube embeds don't expose an "ended" DOM event. With
-    // enablejsapi=1 the player posts state changes to the parent window;
-    // state 0 === ENDED.
-    useEffect(() => {
-        if (!short.videoId || !isActive || !autoScroll) return;
-
-        const handleMessage = (e) => {
-            if (e.source !== iframeRef.current?.contentWindow) return;
-            let data = e.data;
-            if (typeof data === "string") {
-                try { data = JSON.parse(data); } catch { return; }
-            }
-            const state =
-                data?.event === "onStateChange" ? data.info :
-                data?.event === "infoDelivery" ? data.info?.playerState : undefined;
-            if (state === 0) endedRef.current();
-        };
-
-        window.addEventListener("message", handleMessage);
-        return () => window.removeEventListener("message", handleMessage);
-    }, [short.videoId, isActive, autoScroll]);
-
-    // Subscribe to the embed's events once it has loaded.
-    const handleIframeLoad = () => {
-        iframeRef.current?.contentWindow?.postMessage(
-            JSON.stringify({ event: "listening", id: 1, channel: "widget" }),
-            "*"
-        );
-    };
 
     const togglePlayPause = () => {
         if (short.videoId) return; // no play/pause control on the embed
@@ -172,8 +180,7 @@ function ShortCard({ short, isActive, muted, onToggleMute, onSeenView, myName, a
                     // in the feed don't all autoplay/download at once.
                     isActive ? (
                         <iframe
-                            ref={iframeRef}
-                            onLoad={handleIframeLoad}
+                            id={`short-iframe-${short._id}`}
                             key={`${short._id}-${muted}-${autoScroll}`}
                             src={`https://www.youtube.com/embed/${short.videoId}?autoplay=1&mute=${muted ? 1 : 0}${autoScroll ? "" : `&loop=1&playlist=${short.videoId}`}&enablejsapi=1&controls=0&modestbranding=1&playsinline=1&rel=0`}
                             className="w-full h-full pointer-events-none"
@@ -193,7 +200,7 @@ function ShortCard({ short, isActive, muted, onToggleMute, onSeenView, myName, a
                         src={short.videoUrl}
                         className="w-full h-full object-cover"
                         loop={!autoScroll}
-                        onEnded={() => endedRef.current()}
+                        onEnded={autoScroll ? () => advanceRef.current?.() : undefined}
                         muted={muted}
                         playsInline
                         onClick={(e) => e.stopPropagation()}
@@ -361,12 +368,38 @@ function Shorts() {
     const [loading, setLoading] = useState(true);
     const [myName, setMyName] = useState("Guest");
     const [fetching, setFetching] = useState(false);
+    // On by default — each short plays through once, then the feed moves
+    // on by itself instead of looping forever waiting for a manual swipe.
     const [autoScroll, setAutoScroll] = useState(
-        localStorage.getItem("shortsAutoScroll") === "on"
+        localStorage.getItem("shortsAutoScroll") !== "off"
     );
     const containerRef = useRef(null);
-    const activeIndexRef = useRef(0);
     const seenIds = useRef(new Set());
+
+    const toggleAutoScroll = () => {
+        setAutoScroll((prev) => {
+            const next = !prev;
+            localStorage.setItem("shortsAutoScroll", next ? "on" : "off");
+            return next;
+        });
+    };
+
+    // Scrolls the feed to the short right after the one currently active —
+    // the scroll-snap container does the rest (snaps cleanly into place).
+    const scrollToNextShort = useCallback(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const cards = container.querySelectorAll("[data-short-index]");
+        const nextCard = cards[activeIndex + 1];
+
+        if (nextCard) {
+            nextCard.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        // If there's no next card yet, the existing "load more near the
+        // end" effect will have already fetched more — nothing to do
+        // here but wait for it.
+    }, [activeIndex]);
 
     useEffect(() => {
         loadInitial();
@@ -397,26 +430,6 @@ function Shorts() {
             console.log(error);
         }
     }, [shorts]);
-
-    useEffect(() => { activeIndexRef.current = activeIndex; }, [activeIndex]);
-
-    const toggleAutoScroll = () => {
-        setAutoScroll((prev) => {
-            const next = !prev;
-            localStorage.setItem("shortsAutoScroll", next ? "on" : "off");
-            return next;
-        });
-    };
-
-    // Smoothly move to the next short when the current one finishes.
-    const scrollToNext = useCallback(() => {
-        const container = containerRef.current;
-        if (!container) return;
-        container.scrollTo({
-            top: (activeIndexRef.current + 1) * container.clientHeight,
-            behavior: "smooth",
-        });
-    }, []);
 
     const handleSeenView = (id) => {
         if (seenIds.current.has(id)) return;
@@ -518,16 +531,11 @@ function Shorts() {
 
             <button
                 onClick={toggleAutoScroll}
-                title={autoScroll ? "Auto-scroll is on" : "Auto-scroll is off"}
-                aria-pressed={autoScroll}
-                className="absolute top-4 left-28 z-20 h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-medium"
-                style={{
-                    backgroundColor: autoScroll ? "var(--color-brand)" : "rgba(0,0,0,0.4)",
-                    color: "#fff",
-                }}
+                title="Auto-scroll to the next short when one ends"
+                className="absolute top-4 left-28 z-20 h-9 px-3 rounded-full flex items-center text-xs font-medium"
+                style={{ backgroundColor: autoScroll ? "var(--color-brand)" : "rgba(0,0,0,0.4)", color: "#fff" }}
             >
-                <FaAngleDoubleDown size={12} />
-                Auto {autoScroll ? "ON" : "OFF"}
+                Auto-scroll: {autoScroll ? "On" : "Off"}
             </button>
 
             <div
@@ -545,8 +553,7 @@ function Shorts() {
                             onSeenView={handleSeenView}
                             myName={myName}
                             autoScroll={autoScroll}
-                            isLast={idx === shorts.length - 1}
-                            onEnded={scrollToNext}
+                            onEndedAutoAdvance={scrollToNextShort}
                         />
                     </div>
                 ))}

@@ -90,6 +90,7 @@ function Register() {
                 <input
                     type="email"
                     placeholder="Email"
+                    required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full p-3 rounded-lg mb-4 border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
@@ -99,17 +100,17 @@ function Register() {
                     <input
                         type={showPassword ? "text" : "password"}
                         placeholder="Password"
+                        required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         className="w-full p-3 pr-11 rounded-lg border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
                     />
                     <button
                         type="button"
-                        onClick={() => setShowPassword((s) => !s)}
-                        tabIndex={-1}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2"
-                        style={{ color: "var(--color-text-muted)" }}
+                        style={{ color: "var(--color-text-faint)" }}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                         {showPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
                     </button>
@@ -119,17 +120,17 @@ function Register() {
                     <input
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Confirm Password"
+                        required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         className="w-full p-3 pr-11 rounded-lg border outline-none" style={{ backgroundColor: "var(--color-surface-2)", borderColor: "var(--color-border)", color: "var(--color-text)" }}
                     />
                     <button
                         type="button"
-                        onClick={() => setShowConfirmPassword((s) => !s)}
-                        tabIndex={-1}
-                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowConfirmPassword((v) => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2"
-                        style={{ color: "var(--color-text-muted)" }}
+                        style={{ color: "var(--color-text-faint)" }}
+                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                     >
                         {showConfirmPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
                     </button>

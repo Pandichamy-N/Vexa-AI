@@ -1,5 +1,5 @@
-import { useContext, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useContext, useEffect, useRef, useState } from "react";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API_ROOT } from "../config/api";
 import { FaThumbsUp, FaRobot, FaHeart, FaRegHeart, FaShareAlt, FaCheck } from "react-icons/fa";
@@ -10,6 +10,7 @@ import {
     addToWatchLater,
     addToHistory,
     increaseView,
+    getRelatedVideos,
 } from "../api/videoApi";
 import {
     subscribeToChannel,
@@ -29,7 +30,16 @@ function VideoPage() {
 
     const { t } = useContext(LanguageContext);
     const { id } = useParams();
+    const navigate = useNavigate();
     const currentUserId = localStorage.getItem("userId");
+
+    // Autoplay next — on by default, same as YouTube. Persisted so it
+    // doesn't need re-enabling on every video.
+    const [autoplayNext, setAutoplayNext] = useState(
+        localStorage.getItem("autoplayNext") !== "off"
+    );
+    const [nextVideoId, setNextVideoId] = useState(null);
+    const ytPlayerRef = useRef(null);
 
     const [video, setVideo] = useState(null);
     const [likes, setLikes] = useState(0);
@@ -80,6 +90,88 @@ function VideoPage() {
     };
 
     // ================= FETCH VIDEO =================
+    const handleVideoEnded = () => {
+        if (!autoplayNext) return;
+
+        // Opened from search results? Keep going down that same list.
+        let target = null;
+        try {
+            const queue = JSON.parse(sessionStorage.getItem("vexaSearchQueue") || "[]");
+            const idx = queue.indexOf(id);
+            if (idx !== -1 && queue[idx + 1]) target = queue[idx + 1];
+        } catch {
+            // unreadable queue — fall through to related videos
+        }
+
+        // Otherwise (or at the end of the list) use the top related video.
+        target = target || nextVideoId;
+
+        if (target) navigate(`/video/${target}`);
+    };
+
+    const toggleAutoplay = () => {
+        setAutoplayNext((prev) => {
+            const next = !prev;
+            localStorage.setItem("autoplayNext", next ? "on" : "off");
+            return next;
+        });
+    };
+
+    // YouTube-sourced videos play in a cross-origin iframe, so detecting
+    // "it ended" needs the official IFrame API rather than a plain
+    // onEnded handler (which only exists on native <video> elements).
+    useEffect(() => {
+
+        if (!video?.videoId) return;
+
+        let player;
+        let cancelled = false;
+
+        const createPlayer = () => {
+            if (cancelled) return;
+            player = new window.YT.Player("vexa-video-iframe", {
+                events: {
+                    onStateChange: (e) => {
+                        if (e.data === window.YT.PlayerState.ENDED) {
+                            handleVideoEndedRef.current();
+                        }
+                    },
+                },
+            });
+            ytPlayerRef.current = player;
+        };
+
+        if (window.YT && window.YT.Player) {
+            createPlayer();
+        } else {
+            const existingScript = document.getElementById("youtube-iframe-api");
+            if (!existingScript) {
+                const tag = document.createElement("script");
+                tag.id = "youtube-iframe-api";
+                tag.src = "https://www.youtube.com/iframe_api";
+                document.body.appendChild(tag);
+            }
+            const previousCallback = window.onYouTubeIframeAPIReady;
+            window.onYouTubeIframeAPIReady = () => {
+                previousCallback?.();
+                createPlayer();
+            };
+        }
+
+        return () => {
+            cancelled = true;
+        };
+
+    }, [video?.videoId, video?._id]);
+
+    // handleVideoEnded closes over nextVideoId/autoplayNext from render
+    // time — the YT event handler above is only set up once per video,
+    // so it needs a ref to always call the latest version.
+    const handleVideoEndedRef = useRef(handleVideoEnded);
+    useEffect(() => {
+        handleVideoEndedRef.current = handleVideoEnded;
+    });
+
     const fetchVideo = async () => {
         try {
 
@@ -93,6 +185,11 @@ function VideoPage() {
 
             // Count this view
             increaseView(id).catch((err) => console.log(err));
+
+            // Know what to autoplay once this one ends.
+            getRelatedVideos(id)
+                .then((relatedRes) => setNextVideoId(relatedRes.data?.[0]?._id || null))
+                .catch(() => setNextVideoId(null));
 
             if (res.data.user) {
                 setSubscriberCount(
@@ -413,9 +510,10 @@ function VideoPage() {
                     {video.videoId ? (
 
                         <iframe
+                            id="vexa-video-iframe"
                             width="100%"
                             height="100%"
-                            src={`https://www.youtube.com/embed/${video.videoId}`}
+                            src={`https://www.youtube.com/embed/${video.videoId}?enablejsapi=1`}
                             title={video.title}
                             frameBorder="0"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -427,6 +525,7 @@ function VideoPage() {
                         <video
                             src={video.videoUrl}
                             controls
+                            onEnded={handleVideoEnded}
                             className="w-full h-full"
                         />
 
@@ -799,6 +898,23 @@ function VideoPage() {
             {/* RIGHT */}
 
             <div className="lg:col-span-4">
+
+                <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-medium" style={{ color: "var(--color-text)" }}>
+                        Autoplay
+                    </span>
+                    <button
+                        onClick={toggleAutoplay}
+                        className="w-10 h-6 rounded-full relative transition-colors shrink-0"
+                        style={{ backgroundColor: autoplayNext ? "var(--color-brand)" : "var(--color-surface-2)" }}
+                        aria-label="Toggle autoplay"
+                    >
+                        <span
+                            className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                            style={{ transform: autoplayNext ? "translateX(18px)" : "translateX(2px)" }}
+                        />
+                    </button>
+                </div>
 
                 <RelatedVideos currentId={id} />
 

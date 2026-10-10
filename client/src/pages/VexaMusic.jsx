@@ -22,6 +22,7 @@ function VexaMusic() {
 
     const { t } = useContext(LanguageContext);
     const { showToast } = useContext(ToastContext);
+    const [searchParams] = useSearchParams();
 
     const [tab, setTab] = useState("browse");
     const [isPremium, setIsPremium] = useState(false);
@@ -120,25 +121,7 @@ function VexaMusic() {
         }
     };
 
-    // Lets other parts of the app (e.g. the AI chatbot) deep-link into a
-    // music search with /music?q=<song>.
-    const [searchParams] = useSearchParams();
-    const urlQuery = searchParams.get("q") || "";
-
-    useEffect(() => {
-        if (!urlQuery.trim()) return;
-        setTab("browse");
-        setQuery(urlQuery);
-        runMusicSearch(urlQuery);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [urlQuery]);
-
-    const handleSearch = (e) => {
-        e.preventDefault();
-        runMusicSearch(query);
-    };
-
-    const runMusicSearch = async (q) => {
+    const runSearch = async (q) => {
         if (!q.trim()) return;
 
         try {
@@ -153,6 +136,23 @@ function VexaMusic() {
             setSearching(false);
         }
     };
+
+    const handleSearch = (e) => {
+        e.preventDefault();
+        runSearch(query);
+    };
+
+    // Deep link support — e.g. the chatbot sends people here with
+    // /music?q=... after a "play/find <song>" request, and the search
+    // should run immediately instead of landing on an empty page.
+    useEffect(() => {
+        const q = searchParams.get("q");
+        if (q) {
+            setQuery(q);
+            runSearch(q);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     const handleLoadMoreSearch = async () => {
         if (!hasMore || loadingMore) return;

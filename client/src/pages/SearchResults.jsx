@@ -25,6 +25,15 @@ function SearchResults() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [query]);
 
+    // Remember the order of the results on screen, so when a video opened
+    // from here finishes, autoplay can continue down this same list
+    // (see handleVideoEnded in VideoPage) instead of jumping elsewhere.
+    useEffect(() => {
+        if (results.length) {
+            sessionStorage.setItem("vexaSearchQueue", JSON.stringify(results.map((v) => v._id)));
+        }
+    }, [results]);
+
     const runSearch = async () => {
         try {
             setLoading(true);

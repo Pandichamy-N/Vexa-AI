@@ -3,44 +3,104 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-const MODEL = "gemini-3.8-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const MODEL = "google/gemini-2.5-flash";
+
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+// ================= PROVIDERS =================
+// Google's own Gemini API first (free tier — daily quota that resets,
+// no credits to top up), OpenRouter second as a backup. Each one is only
+// tried if its key is actually set, so a missing key skips that provider
+// instead of sending a request with no auth header.
+const callGemini = async (prompt, { temperature, max_tokens }) => {
+
+    const response = await axios.post(
+        GEMINI_URL,
+        {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+                temperature,
+                maxOutputTokens: max_tokens,
+                // 2.5 models "think" before answering and that thinking
+                // eats into maxOutputTokens — with our short limits it can
+                // leave an empty reply, so it's switched off here.
+                thinkingConfig: { thinkingBudget: 0 },
+            },
+        },
+        {
+            headers: {
+                "x-goog-api-key": process.env.GEMINI_API_KEY,
+                "Content-Type": "application/json",
+            },
+            timeout: 25000,
+        }
+    );
+
+    const text = (response.data?.candidates?.[0]?.content?.parts || [])
+        .map((part) => part.text || "")
+        .join("");
+
+    if (!text.trim()) {
+        throw new Error("Gemini returned an empty reply");
+    }
+
+    return text;
+};
+
+const callOpenRouter = async (prompt, { temperature, max_tokens }) => {
+
+    const response = await axios.post(
+        OPENROUTER_URL,
+        {
+            model: MODEL,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens,
+            temperature,
+        },
+        {
+            headers: {
+                Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                "Content-Type": "application/json",
+            },
+            timeout: 25000,
+        }
+    );
+
+    return response.data.choices[0].message.content;
+};
 
 // ================= CORE HELPER =================
+// Shared entry point used by every AI feature in this file. If every
+// configured provider fails (out of quota/credits, bad key, network),
+// it throws a plain, friendly error — never the provider's raw message
+// (things like "Missing Authentication header" or "please subscribe"
+// were ending up inside the AI Summary box).
 const callAI = async (prompt, { temperature = 0.5, max_tokens = 600 } = {}) => {
-    try {
-        const response = await axios.post(
-            GEMINI_URL,
-            {
-                contents: [{ role: "user", parts: [{ text: prompt }] }],
-                generationConfig: {
-                    temperature,
-                    maxOutputTokens: max_tokens+ 1500,
-                    thinkingConfig: { thinkingLevel: "low" },
-                },
-            },
-            {
-                headers: {
-                    "x-goog-api-key": process.env.GEMINI_API_KEY,
-                    "Content-Type": "application/json",
-                },
-            }
-        );
 
-        const text = response.data?.candidates?.[0]?.content?.parts
-            ?.map((p) => p.text || "")
-            .join("");
+    const options = { temperature, max_tokens };
+    const providers = [];
 
-        if (!text) {
-            throw new Error("Gemini returned an empty response");
-        }
+    if (process.env.GEMINI_API_KEY) providers.push(["Gemini", callGemini]);
+    if (process.env.OPENROUTER_API_KEY) providers.push(["OpenRouter", callOpenRouter]);
 
-        return text;
-
-    } catch (error) {
-        console.error("AI Service Error:", error.response?.data || error.message);
-        throw error;
+    if (providers.length === 0) {
+        console.error("AI Service: neither GEMINI_API_KEY nor OPENROUTER_API_KEY is set on the server.");
     }
+
+    for (const [name, provider] of providers) {
+        try {
+            return await provider(prompt, options);
+        } catch (error) {
+            console.error(
+                `AI Service Error (${name}):`,
+                error.response?.data || error.message
+            );
+        }
+    }
+
+    throw new Error("The AI assistant is unavailable right now — please try again in a little while.");
 };
 
 // Strips ```json / ``` fences the model sometimes adds and parses the

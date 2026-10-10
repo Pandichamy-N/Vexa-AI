@@ -13,15 +13,12 @@ export const searchMusic = (query, pageToken = null) =>
 
 // AI-curated "up next" — a blended, mood-matched continuation instead
 // of just the next item in whatever list the track was played from.
-// excludeYoutubeIds should be every track already played in this
-// listening session (not just the current one) — otherwise a fresh
-// YouTube search for the same artist/style just turns candidates that
-// were already played back up again, and the "line" collapses into a
-// 2-song loop instead of continuing to build.
-export const getMusicNextTracks = (trackId, excludeYoutubeIds = []) =>
+// excludeIds: recently-played track ids in this session, so a song
+// that just played can't immediately loop back around as "next".
+export const getMusicNextTracks = (trackId, excludeIds = []) =>
     axios.get(`${API_URL}/next-up/${trackId}`, {
         ...authHeaders(),
-        params: excludeYoutubeIds.length ? { exclude: excludeYoutubeIds.join(",") } : {},
+        params: excludeIds.length ? { excludeIds: excludeIds.join(",") } : {},
     });
 
 // ================= FAVORITES =================

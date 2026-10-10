@@ -2,37 +2,40 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaRobot, FaTimes, FaPaperPlane, FaMicrophone } from "react-icons/fa";
 import { sendChatMessage } from "../api/aiApi";
-import { searchMusic } from "../api/musicApi";
-import { searchVideosAI } from "../api/videoApi";
-import { getProfile } from "../services/userService";
 import VexaLogo from "./VexaLogo";
 import { MusicPlayerContext } from "../context/MusicPlayerContext";
-import { InAppBrowserContext } from "../context/InAppBrowserContext";
-import { LanguageContext } from "../context/LanguageContext";
-import { detectChatIntent } from "../utils/chatIntent";
 
-const SPEECH_LOCALES = {
-    en: "en-US",
-    ta: "ta-IN",
-    hi: "hi-IN",
-    ml: "ml-IN",
-    te: "te-IN",
+// Recognizes "play/search/find <thing>"-style requests so the chatbot
+// can jump straight into real results instead of just talking about
+// them — and works purely by pattern matching, so it keeps working even
+// when the AI provider itself is down or out of credits.
+const SEARCH_INTENT_RE = /^(?:please\s+|can you\s+|could you\s+)?(play|search(?:\s+for)?|find(?:\s+me)?|look\s*up|open)\s+(.+)/i;
+const MUSIC_KEYWORDS = /\b(song|songs|music|track|tracks|album|artist)\b/i;
+const VIDEO_KEYWORDS = /\b(video|videos|movie|clip|shorts?)\b/i;
+
+const detectSearchIntent = (text) => {
+    const match = SEARCH_INTENT_RE.exec(text.trim());
+    if (!match) return null;
+
+    const query = match[2].trim();
+    if (!query) return null;
+
+    // Explicit mentions win; otherwise default to a general video search,
+    // since that's the platform's primary content type.
+    const type = MUSIC_KEYWORDS.test(query) && !VIDEO_KEYWORDS.test(query) ? "music" : "video";
+
+    return { type, query };
 };
 
 function ChatbotWidget() {
 
-    const { currentTrack, playTrack } = useContext(MusicPlayerContext);
-    const { open: openInAppBrowser } = useContext(InAppBrowserContext);
-    const { language } = useContext(LanguageContext);
+    const { currentTrack } = useContext(MusicPlayerContext);
     const navigate = useNavigate();
-
     const [open, setOpen] = useState(false);
-    const [isPremium, setIsPremium] = useState(false);
-    const [listening, setListening] = useState(false);
-    const recognitionRef = useRef(null);
-    const voiceTextRef = useRef("");
-    const handleSendRef = useRef(null);
     const [message, setMessage] = useState("");
+    const [listening, setListening] = useState(false);
+    const [voiceSupported, setVoiceSupported] = useState(true);
+    const recognitionRef = useRef(null);
     const [messages, setMessages] = useState([
         {
             role: "assistant",
@@ -50,110 +53,123 @@ function ChatbotWidget() {
         }
     }, [messages, open]);
 
+    // ================= VOICE INPUT =================
     useEffect(() => {
-        if (!loggedIn) return;
-        getProfile().then((data) => setIsPremium(Boolean(data.user?.isPremium))).catch(() => {});
-    }, [loggedIn]);
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    const addAssistantMessage = (text) =>
-        setMessages((prev) => [...prev, { role: "assistant", text }]);
-
-    // Close the panel shortly after jumping to a page, so the person
-    // actually sees where they landed instead of the chat covering it.
-    const closeSoon = () => setTimeout(() => setOpen(false), 900);
-
-    // ================= AUTO-OPEN: songs / videos / links =================
-    // Runs for typed AND spoken messages. Returns true if it handled the
-    // message (so the normal AI reply is skipped).
-    const runIntent = async (intent) => {
-
-        if (intent.type === "link") {
-            try {
-                const parsed = new URL(intent.url);
-                if (parsed.origin === window.location.origin) {
-                    addAssistantMessage("Opening that page for you…");
-                    navigate(parsed.pathname + parsed.search);
-                } else {
-                    addAssistantMessage("Opening that link inside VEXA…");
-                    openInAppBrowser(intent.url);
-                }
-                closeSoon();
-            } catch {
-                addAssistantMessage("That link doesn't look valid — can you check it?");
-            }
-            return true;
+        if (!SpeechRecognition) {
+            setVoiceSupported(false);
+            return;
         }
 
-        if (intent.type === "music") {
-            addAssistantMessage(`Searching songs for "${intent.query}"…`);
-            try {
-                const res = await searchMusic(intent.query);
-                const tracks = res.data.tracks || [];
-                if (!tracks.length) {
-                    addAssistantMessage(`I couldn't find any songs for "${intent.query}". Try another name?`);
-                    return true;
-                }
-                playTrack(tracks[0], tracks, isPremium);
-                navigate(`/music?q=${encodeURIComponent(intent.query)}`);
-                addAssistantMessage(`Playing "${tracks[0].title}" — the full results are on the Music page.`);
-                closeSoon();
-            } catch (error) {
-                console.log(error);
-                addAssistantMessage("Couldn't search songs right now. Try again in a moment.");
-            }
-            return true;
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map((result) => result[0].transcript)
+                .join("");
+            setMessage(transcript);
+        };
+
+        recognition.onerror = (event) => {
+            console.log("Voice input error:", event.error);
+            setListening(false);
+        };
+
+        recognition.onend = () => {
+            setListening(false);
+        };
+
+        recognitionRef.current = recognition;
+
+        return () => {
+            recognition.stop();
+        };
+    }, []);
+
+    const handleVoiceInput = () => {
+
+        if (!voiceSupported || !recognitionRef.current) {
+            alert("Voice input isn't supported in this browser — try Chrome or Edge.");
+            return;
         }
 
-        if (intent.type === "video") {
-            addAssistantMessage(`Searching videos for "${intent.query}"…`);
-            try {
-                const res = await searchVideosAI(intent.query);
-                const top = res.data.results?.[0];
-                if (top?._id) {
-                    navigate(`/video/${top._id}`);
-                    addAssistantMessage(`Opening "${top.title}".`);
-                } else {
-                    navigate(`/search?q=${encodeURIComponent(intent.query)}`);
-                    addAssistantMessage(`No exact match — showing search results for "${intent.query}".`);
-                }
-                closeSoon();
-            } catch (error) {
-                console.log(error);
-                navigate(`/search?q=${encodeURIComponent(intent.query)}`);
-                addAssistantMessage(`Showing search results for "${intent.query}".`);
-                closeSoon();
-            }
-            return true;
+        if (listening) {
+            recognitionRef.current.stop();
+            setListening(false);
+            return;
         }
 
-        return false;
+        setMessage("");
+        setListening(true);
+
+        try {
+            recognitionRef.current.start();
+        } catch (error) {
+            console.log(error);
+        }
+
     };
 
-    const handleSend = async (overrideText) => {
+    // Auto-send a moment after the mic stops picking up new speech —
+    // speak, then it sends, same as Navbar's voice search.
+    useEffect(() => {
+        if (!listening || !message.trim()) return;
 
-        const rawText = typeof overrideText === "string" ? overrideText : message;
+        const timer = setTimeout(() => {
+            if (recognitionRef.current) recognitionRef.current.stop();
+            handleSend();
+        }, 1200);
 
-        if (!rawText.trim()) return;
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [message, listening]);
+
+    const handleSend = async () => {
+
+        if (!message.trim()) return;
 
         if (!loggedIn) {
             setMessages((prev) => [
                 ...prev,
-                { role: "user", text: rawText },
+                { role: "user", text: message },
                 { role: "assistant", text: "Log in first and I can help you find videos and explain features." },
             ]);
             setMessage("");
             return;
         }
 
-        const userText = rawText;
+        const userText = message;
         setMessage("");
 
         const nextMessages = [...messages, { role: "user", text: userText }];
         setMessages(nextMessages);
 
-        // Songs / videos / links: go straight there, no AI round-trip.
-        const handled = await runIntent(detectChatIntent(userText));
-        if (handled) return;
+        const intent = detectSearchIntent(userText);
+
+        if (intent) {
+
+            const destination = intent.type === "music"
+                ? `/music?q=${encodeURIComponent(intent.query)}`
+                : `/search?q=${encodeURIComponent(intent.query)}`;
+
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: "assistant",
+                    text: intent.type === "music"
+                        ? `🎵 Taking you to VEXA Music results for "${intent.query}"...`
+                        : `🔍 Taking you to search results for "${intent.query}"...`,
+                },
+            ]);
+
+            setOpen(false);
+            navigate(destination);
+            return;
+        }
 
         try {
 
@@ -193,61 +209,6 @@ function ChatbotWidget() {
 
         }
 
-    };
-
-    // Always point at the latest handleSend so the voice callbacks
-    // (created once) never use stale messages/state.
-    handleSendRef.current = handleSend;
-
-    // ================= VOICE INPUT =================
-    useEffect(() => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) return;
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-
-        recognition.onresult = (event) => {
-            const transcript = Array.from(event.results)
-                .map((result) => result[0].transcript)
-                .join("");
-            voiceTextRef.current = transcript;
-            setMessage(transcript);
-        };
-
-        recognition.onerror = () => setListening(false);
-
-        // When the mic stops, send whatever was heard — speak, pause, done.
-        recognition.onend = () => {
-            setListening(false);
-            const heard = voiceTextRef.current.trim();
-            voiceTextRef.current = "";
-            if (heard) handleSendRef.current(heard);
-        };
-
-        recognitionRef.current = recognition;
-        return () => recognition.abort();
-    }, []);
-
-    const handleVoice = () => {
-        if (!recognitionRef.current) {
-            addAssistantMessage("Voice isn't supported in this browser — try Chrome or Edge.");
-            return;
-        }
-        if (listening) {
-            recognitionRef.current.stop();
-            return;
-        }
-        recognitionRef.current.lang = SPEECH_LOCALES[language] || "en-US";
-        voiceTextRef.current = "";
-        setMessage("");
-        setListening(true);
-        try {
-            recognitionRef.current.start();
-        } catch (error) {
-            console.log(error);
-        }
     };
 
     return (
@@ -378,7 +339,7 @@ function ChatbotWidget() {
 
                         <input
                             type="text"
-                            placeholder={listening ? "Listening…" : loggedIn ? "Ask, or say “play Anirudh songs”…" : "Log in to chat with AI"}
+                            placeholder={loggedIn ? (listening ? "Listening..." : "Ask me anything, or try \"play ...\"") : "Log in to chat with AI"}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyDown={(e) => {
@@ -392,20 +353,27 @@ function ChatbotWidget() {
                         />
 
                         <button
-                            onClick={handleVoice}
-                            aria-label={listening ? "Stop listening" : "Speak to the assistant"}
-                            title="Voice"
-                            className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${listening ? "animate-pulse" : ""}`}
-                            style={{
-                                backgroundColor: listening ? "#ef4444" : "var(--color-surface-2)",
-                                color: listening ? "#fff" : "var(--color-text-muted)",
-                            }}
+                            onClick={handleVoiceInput}
+                            title="Voice input"
+                            aria-label="Voice input"
+                            className="relative w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                            style={{ backgroundColor: "var(--color-surface-2)" }}
                         >
-                            <FaMicrophone size={13} />
+                            {listening && (
+                                <span
+                                    className="absolute inset-0 rounded-full animate-ping"
+                                    style={{ backgroundColor: "var(--color-danger)", opacity: 0.4 }}
+                                />
+                            )}
+                            <FaMicrophone
+                                size={13}
+                                className="relative"
+                                style={{ color: listening ? "var(--color-danger)" : "var(--color-text-faint)" }}
+                            />
                         </button>
 
                         <button
-                            onClick={() => handleSend()}
+                            onClick={handleSend}
                             disabled={sending}
                             className="ai-btn w-9 h-9 rounded-full flex items-center justify-center shrink-0"
                         >

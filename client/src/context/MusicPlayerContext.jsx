@@ -73,26 +73,13 @@ function MusicPlayerProvider({ children }) {
     // before). Kept in sync every render.
     const currentTrackRef = useRef(null);
     const currentSourceRef = useRef("list"); // "playlist" | "list" — see playTrack
+    // Rolling history of recently-played track ids this session — passed
+    // to the AI blend endpoint so a song can't loop right back as "next".
+    const recentlyPlayedIdsRef = useRef([]);
     const queueRef = useRef([]);
     const autoNextRef = useRef(true);
     const repeatRef = useRef("off");
     const shuffleRef = useRef(false);
-
-    // Every track played this session (by youtubeId), oldest first,
-    // capped so the exclude list sent to the server doesn't grow
-    // unbounded over a long listening session. This is what stops the
-    // AI "up next" continuation from circling back to a track that
-    // already played a few songs ago.
-    const playedYoutubeIdsRef = useRef([]);
-    const MAX_TRACKED_HISTORY = 40;
-    const trackPlayed = (track) => {
-        if (!track?.youtubeId) return;
-        const list = playedYoutubeIdsRef.current;
-        if (!list.includes(track.youtubeId)) {
-            list.push(track.youtubeId);
-            if (list.length > MAX_TRACKED_HISTORY) list.shift();
-        }
-    };
 
     useEffect(() => { currentTrackRef.current = currentTrack; }, [currentTrack]);
     useEffect(() => { queueRef.current = queue; }, [queue]);
@@ -227,7 +214,13 @@ function MusicPlayerProvider({ children }) {
         setIsPlaying(true);
         playsSinceAdRef.current += 1;
 
-        trackPlayed(track);
+        // Keep the last 15 played ids — used to keep the AI blend from
+        // looping back to something that just played.
+        recentlyPlayedIdsRef.current = [
+            track._id,
+            ...recentlyPlayedIdsRef.current.filter((id) => id !== track._id),
+        ].slice(0, 15);
+
         recordRecentlyPlayed(track._id).catch(() => {});
 
     }, []);
@@ -243,86 +236,116 @@ function MusicPlayerProvider({ children }) {
         return currentIdx + 1;
     };
 
+    // Finds the LAST matching occurrence, not the first — a track can
+    // appear twice in the queue (once from the original list, once
+    // freshly appended by the AI blend), and the one that's actually
+    // playing right now is always the most recent one.
+    const lastIndexOfTrack = (list, trackId) => {
+        for (let i = list.length - 1; i >= 0; i--) {
+            if (list[i]._id === trackId) return i;
+        }
+        return -1;
+    };
+
+    // Fetches one AI-picked batch (seeded from `seedTrack`) and appends
+    // it to the queue. Called ONCE per batch — either right when a
+    // non-playlist track starts playing (so Up Next fills in
+    // immediately), or when the queue actually runs dry — never on a
+    // per-song-transition basis, which is what caused the earlier
+    // loop-between-two-songs bug.
+    const blendFetchInFlightRef = useRef(false);
+    const extendQueueWithBlend = async (seedTrack) => {
+
+        if (blendFetchInFlightRef.current) return false;
+        blendFetchInFlightRef.current = true;
+
+        try {
+
+            setQueueLoading(true);
+
+            const res = await getMusicNextTracks(seedTrack._id, recentlyPlayedIdsRef.current);
+            const aiTracks = (res.data?.tracks || []).filter(
+                (t) => !queueRef.current.some((q) => q._id === t._id)
+            );
+
+            if (aiTracks.length > 0) {
+                const extended = [...queueRef.current, ...aiTracks];
+                queueRef.current = extended;
+                setQueue(extended);
+                return true;
+            }
+
+            // AI blend came back empty — fall back to a plain same-artist
+            // search so the queue still gets extended.
+            const searchRes = await searchMusic(seedTrack.artist || seedTrack.title);
+            const more = (searchRes.data?.tracks || []).filter(
+                (t) => !recentlyPlayedIdsRef.current.includes(t._id) && !queueRef.current.some((q) => q._id === t._id)
+            );
+
+            if (more.length > 0) {
+                const extended = [...queueRef.current, ...more];
+                queueRef.current = extended;
+                setQueue(extended);
+                return true;
+            }
+
+            return false;
+
+        } catch (error) {
+            console.log("Couldn't extend the queue:", error);
+            return false;
+        } finally {
+            setQueueLoading(false);
+            blendFetchInFlightRef.current = false;
+        }
+
+    };
+
     const skipNextRef = useRef(() => {});
     skipNextRef.current = async () => {
 
         const track = currentTrackRef.current;
-        const currentQueue = queueRef.current;
+        let currentQueue = queueRef.current;
 
         if (!track) return;
 
-        // Playlists are a deliberately sequenced listen — keep marching
-        // through them in order, same as before.
+        const currentIdx = lastIndexOfTrack(currentQueue, track._id);
+        let nextIdx = pickNextIndex(currentQueue, currentIdx);
+        let next = currentQueue[nextIdx];
+
+        // Queue has more queued up (a playlist's own order, or an
+        // already-primed AI batch) — just play straight through it.
+        if (next) {
+            startTrack(next);
+            return;
+        }
+
+        if (repeatRef.current === "all" && currentQueue.length > 0) {
+            startTrack(currentQueue[0]);
+            return;
+        }
+
+        // Nothing left queued. Playlists end here, same as before —
+        // that's a deliberately bounded listen.
         if (currentSourceRef.current === "playlist") {
-
-            const currentIdx = currentQueue.findIndex((t) => t._id === track._id);
-            const nextIdx = pickNextIndex(currentQueue, currentIdx);
-            const next = currentQueue[nextIdx];
-
-            if (next) {
-                startTrack(next);
-                return;
-            }
-
-            if (repeatRef.current === "all" && currentQueue.length > 0) {
-                startTrack(currentQueue[0]);
-                return;
-            }
-
             setIsPlaying(false);
             return;
         }
 
-        // Everything else (search results, favorites, recently played,
-        // an artist's tracks) — blend mode: ask the AI curator for a
-        // related continuation instead of just playing through whatever
-        // order that list happened to come back in.
-        try {
+        // Everything else: the queue ran dry, so fetch one more AI batch
+        // and continue from it.
+        const extended = await extendQueueWithBlend(track);
 
-            setQueueLoading(true);
-
-            const res = await getMusicNextTracks(track._id, playedYoutubeIdsRef.current);
-            const aiTracks = (res.data?.tracks || [])
-                .filter((t) => !playedYoutubeIdsRef.current.includes(t.youtubeId));
-
-            if (aiTracks.length > 0) {
-                const extendedQueue = [...currentQueue, ...aiTracks];
-                queueRef.current = extendedQueue;
-                setQueue(extendedQueue);
-                startTrack(aiTracks[0]);
-                return;
-            }
-
-        } catch (error) {
-            console.log("AI blend next-up failed, falling back to artist search:", error);
-        } finally {
-            setQueueLoading(false);
+        if (extended) {
+            currentQueue = queueRef.current;
+            nextIdx = lastIndexOfTrack(currentQueue, track._id) + 1;
+            next = currentQueue[nextIdx];
         }
 
-        // AI blending unavailable or came back empty — fall back to a
-        // plain same-artist search, same as the previous behavior.
-        try {
-            setQueueLoading(true);
-
-            const res = await searchMusic(track.artist || track.title);
-            const more = (res.data?.tracks || [])
-                .filter((t) => t._id !== track._id)
-                .filter((t) => !playedYoutubeIdsRef.current.includes(t.youtubeId));
-
-            if (more.length > 0) {
-                const extendedQueue = [...currentQueue, ...more];
-                queueRef.current = extendedQueue;
-                setQueue(extendedQueue);
-                startTrack(more[0]);
-            } else {
-                setIsPlaying(false);
-            }
-
-        } catch (error) {
-            console.log(error);
+        if (next) {
+            startTrack(next);
+        } else {
             setIsPlaying(false);
-        } finally {
-            setQueueLoading(false);
         }
 
     };
@@ -454,7 +477,10 @@ function MusicPlayerProvider({ children }) {
     // through whatever order that list happened to come back in.
     const playTrack = useCallback((track, trackQueue = [], isPremium = false, source = "list") => {
 
-        if (trackQueue.length) setQueue(trackQueue);
+        if (trackQueue.length) {
+            setQueue(trackQueue);
+            queueRef.current = trackQueue; // keep the ref in sync now, don't wait for the effect
+        }
         currentSourceRef.current = source;
 
         if (!isPremium && playsSinceAdRef.current >= FREE_AD_INTERVAL) {
@@ -463,6 +489,21 @@ function MusicPlayerProvider({ children }) {
         }
 
         startTrack(track);
+
+        // Prime "Up Next" right away for non-playlist playback (search
+        // results, favorites, recently played, a single picked song) —
+        // so the AI-blended continuation is ready as soon as the track
+        // starts, rather than only being fetched once it ends. Skipped
+        // when something's already queued after this track (e.g. more
+        // items from the same search results list).
+        if (source !== "playlist") {
+            const queueNow = queueRef.current.length ? queueRef.current : [track];
+            const idx = queueNow.findIndex((t) => t._id === track._id);
+            const hasMoreQueued = idx !== -1 && idx < queueNow.length - 1;
+            if (!hasMoreQueued) {
+                extendQueueWithBlend(track);
+            }
+        }
 
     }, [runAdBreak, startTrack]);
 
